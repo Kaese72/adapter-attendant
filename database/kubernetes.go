@@ -84,11 +84,7 @@ func (handle kubeHandle) GetAdapters() ([]string, error) {
 // bootstrapBackend intends to setup config maps and other resources
 // for use with the adapter attendant
 func (handle kubeHandle) bootstrapBackend() error {
-	bootNamespace := coreapplyv1.NamespaceApplyConfiguration{
-		TypeMetaApplyConfiguration:   *metaapplyv1.TypeMeta().WithAPIVersion("v1").WithKind("Namespace"),
-		ObjectMetaApplyConfiguration: metaapplyv1.ObjectMeta().WithName(handle.nameSpace),
-	}
-	_, err := handle.clientSet.CoreV1().Namespaces().Apply(context.TODO(), &bootNamespace, metav1.ApplyOptions{FieldManager: "adapter-attendant"})
+	_, err := handle.clientSet.CoreV1().Namespaces().Get(context.TODO(), handle.nameSpace, metav1.GetOptions{})
 	if err != nil {
 		return err
 	}
