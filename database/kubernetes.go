@@ -105,6 +105,8 @@ func (handle kubeHandle) bootstrapBackend() error {
 }
 
 func (handle kubeHandle) applyConfig(name string, config map[string]string) (*corev1.ConfigMap, error) {
+	// FIXME Define builtin non-overridable configuration
+	config["ENROLL_ADAPTER_KEY"] = name
 	adapterConfig := coreapplyv1.ConfigMapApplyConfiguration{
 		TypeMetaApplyConfiguration:   *metaapplyv1.TypeMeta().WithKind("ConfigMap").WithAPIVersion("v1"),
 		ObjectMetaApplyConfiguration: metaapplyv1.ObjectMeta().WithName(name).WithNamespace(handle.nameSpace),
