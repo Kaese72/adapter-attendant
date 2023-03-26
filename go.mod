@@ -9,7 +9,7 @@ require (
 )
 
 require (
-	github.com/Kaese72/sdup-lib v0.0.3
+	github.com/Kaese72/sdup-lib v0.0.7
 	github.com/PuerkitoBio/purell v1.1.1 // indirect
 	github.com/PuerkitoBio/urlesc v0.0.0-20170810143723-de5bf2ad4578 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect

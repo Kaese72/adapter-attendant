@@ -35,6 +35,11 @@ func main() {
 	myVip.BindEnv("kubernetes.adapter-namespace")
 	myVip.SetDefault("kubernetes.adapter-namespace", "adapters")
 
+	// # Logging
+	myVip.BindEnv("logging.stdout")
+	myVip.SetDefault("logging.stdout", true)
+	myVip.BindEnv("logging.http.url")
+
 	conf := config.Config{
 		Database: database.Kubernetes{
 			KubeConfigPath: myVip.GetString("kubernetes.kubeconfig-path"),
