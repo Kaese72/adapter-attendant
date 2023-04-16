@@ -4,10 +4,10 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/Kaese72/adapter-attendant/config"
-	"github.com/Kaese72/adapter-attendant/database"
-	"github.com/Kaese72/adapter-attendant/rest"
-	"github.com/Kaese72/sdup-lib/logging"
+	"github.com/Kaese72/adapter-attendant/internal/config"
+	"github.com/Kaese72/adapter-attendant/internal/database"
+	"github.com/Kaese72/adapter-attendant/internal/rest"
+	"github.com/Kaese72/huemie-lib/logging"
 	"github.com/spf13/viper"
 )
 

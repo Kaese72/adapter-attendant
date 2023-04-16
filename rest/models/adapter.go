@@ -1,6 +1,6 @@
 package models
 
-import "github.com/Kaese72/adapter-attendant/database/intermediaries"
+import "github.com/Kaese72/adapter-attendant/internal/database/intermediaries"
 
 type Image struct {
 	Name string `json:"name"`

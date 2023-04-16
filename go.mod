@@ -3,13 +3,13 @@ module github.com/Kaese72/adapter-attendant
 go 1.19
 
 require (
+	github.com/Kaese72/huemie-lib v0.0.1
 	k8s.io/api v0.25.4
 	k8s.io/apimachinery v0.25.4
 	k8s.io/client-go v0.25.4
 )
 
 require (
-	github.com/Kaese72/sdup-lib v0.0.7
 	github.com/PuerkitoBio/purell v1.1.1 // indirect
 	github.com/PuerkitoBio/urlesc v0.0.0-20170810143723-de5bf2ad4578 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
@@ -64,5 +64,3 @@ require (
 	github.com/subosito/gotenv v1.4.1 // indirect
 	gopkg.in/ini.v1 v1.67.0 // indirect
 )
-
-// replace github.com/Kaese72/sdup-lib => ../sdup-lib
