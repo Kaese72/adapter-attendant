@@ -21,7 +21,7 @@ func InitRest(database database.AdapterAttendantDB) *mux.Router {
 	router := mux.NewRouter()
 
 	//Everything else (not /auth/login) should have the authentication middleware
-	apiv0 := router.PathPrefix("adapter-attendant/v0/").Subrouter()
+	apiv0 := router.PathPrefix("/adapter-attendant/v0/").Subrouter()
 
 	apiv0.HandleFunc("/adapters", func(writer http.ResponseWriter, reader *http.Request) {
 		adapterNames, err := database.GetAdapters()
