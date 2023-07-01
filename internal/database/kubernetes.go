@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/Kaese72/adapter-attendant/internal/config"
 	"github.com/Kaese72/adapter-attendant/internal/database/intermediaries"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -18,12 +19,6 @@ import (
 )
 
 var ingestConfigName = "adapter-device-store-ingest"
-
-type Kubernetes struct {
-	KubeConfigPath string `json:"kubeconfig-path" mapstructure:"kubeconfig-path"`
-	InCluster      bool   `json:"in-cluster" mapstructure:"in-cluster"`
-	NameSpace      string `json:"namespace" mapstructure:"namespace"`
-}
 
 type kubeHandle struct {
 	clientSet *kubernetes.Clientset
@@ -94,7 +89,7 @@ func (handle kubeHandle) bootstrapBackend() error {
 		ObjectMetaApplyConfiguration: metaapplyv1.ObjectMeta().WithName(ingestConfigName),
 		Data: map[string]string{
 			// FIXME Make configurable
-			"ENROLL_STORE": "http://device-store:8080",
+			"ENROLL_STORE": config.Loaded.DeviceStoreURL,
 		},
 	}
 	_, err = handle.clientSet.CoreV1().ConfigMaps(handle.nameSpace).Apply(context.TODO(), &bootConf, metav1.ApplyOptions{FieldManager: "adapter-attendant"})
@@ -172,7 +167,7 @@ func (handle kubeHandle) ApplyAdapter(adapter intermediaries.Adapter) (intermedi
 	return adapter, nil
 }
 
-func NewPureK8sBackend(conf Kubernetes) (AdapterAttendantDB, error) {
+func NewPureK8sBackend(conf config.Kubernetes) (AdapterAttendantDB, error) {
 	// FIXME Do we want any other kind?
 	kubeConf, err := clientcmd.BuildConfigFromFlags("", conf.KubeConfigPath)
 	if err != nil {

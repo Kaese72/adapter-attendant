@@ -1,15 +1,51 @@
 package config
 
 import (
-	dbconfig "github.com/Kaese72/adapter-attendant/internal/database"
+	"strings"
+
+	"github.com/spf13/viper"
 )
 
-// type HTTPConfig struct {
-// 	Address string `json:"address" mapstructure:"address"`
-// 	Port    int    `json:"port" mapstructure:"port"`
-// }
+type Kubernetes struct {
+	KubeConfigPath string `json:"kubeconfig-path" mapstructure:"kubeconfig-path"`
+	InCluster      bool   `json:"in-cluster" mapstructure:"in-cluster"`
+	NameSpace      string `json:"namespace" mapstructure:"namespace"`
+}
 
 type Config struct {
-	Database dbconfig.Kubernetes `json:"database" mapstructure:"database"`
-	//HTTPConfig HTTPConfig          `json:"http-server" mapstructure:"http-server"`
+	Database       Kubernetes `json:"database" mapstructure:"database"`
+	DeviceStoreURL string     `json:"device-store-url" mapstructure:"device-store-url"`
+}
+
+// Loaded contains all configuration which was loaded in when the application started
+var Loaded Config
+
+func init() {
+	// We have elected to no use AutomaticEnv() because of https://github.com/spf13/viper/issues/584
+	// myVip.AutomaticEnv()
+	// Set replaces to allow keys like "database.mongodb.connection-string"
+	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_", "-", "_"))
+
+	// # Default values where appropriate
+	// Kubernetes access configuration
+	viper.BindEnv("kubernetes.kubeconfig-path")
+	viper.BindEnv("kubernetes.adapter-namespace")
+	viper.SetDefault("kubernetes.adapter-namespace", "adapters")
+
+	// # Logging
+	viper.BindEnv("logging.stdout")
+	viper.SetDefault("logging.stdout", true)
+	viper.BindEnv("logging.http.url")
+
+	// # Device Store
+	viper.BindEnv("device-store.url")
+	viper.SetDefault("device-store.url", "http://device-store.default:8080")
+
+	Loaded = Config{
+		Database: Kubernetes{
+			KubeConfigPath: viper.GetString("kubernetes.kubeconfig-path"),
+			NameSpace:      viper.GetString("kubernetes.adapter-namespace"),
+		},
+		DeviceStoreURL: viper.GetString("device-store.url"),
+	}
 }
