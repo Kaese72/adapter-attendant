@@ -94,7 +94,7 @@ func (handle kubeHandle) bootstrapBackend() error {
 		ObjectMetaApplyConfiguration: metaapplyv1.ObjectMeta().WithName(ingestConfigName),
 		Data: map[string]string{
 			// FIXME Make configurable
-			"ENROLL_STORE": "http://dsa-nodeport-svc.default:8080",
+			"ENROLL_STORE": "http://device-store:8080",
 		},
 	}
 	_, err = handle.clientSet.CoreV1().ConfigMaps(handle.nameSpace).Apply(context.TODO(), &bootConf, metav1.ApplyOptions{FieldManager: "adapter-attendant"})
