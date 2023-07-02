@@ -7,6 +7,7 @@ import (
 
 	"github.com/Kaese72/adapter-attendant/internal/config"
 	"github.com/Kaese72/adapter-attendant/internal/database/intermediaries"
+	"github.com/Kaese72/huemie-lib/logging"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -124,7 +125,7 @@ func (handle kubeHandle) applyDeployment(name string, image intermediaries.Image
 
 	appliedDeployment, err := handle.clientSet.AppsV1().Deployments(handle.nameSpace).Apply(context.TODO(), deployment, metav1.ApplyOptions{FieldManager: "adapter-attendant"})
 	if err != nil {
-		fmt.Printf("Error applying Deployment. %s\n", err.Error())
+		logging.Error("Error applying Deployment", map[string]interface{}{"ERROR": err.Error()})
 		return nil, nil, err
 	}
 	servicePortSpec := coreapplyv1.ServicePort().WithAppProtocol("TCP").WithPort(8080).WithTargetPort(intstr.FromInt(8080))
@@ -145,14 +146,14 @@ func (handle kubeHandle) ApplyAdapter(adapter intermediaries.Adapter) (intermedi
 		// If config is supplied we should apply a ConfigMap
 		_, err := handle.applyConfig(adapter.Name, adapter.Config)
 		if err != nil {
-			fmt.Printf("Error applying config map. %s\n", err.Error())
+			logging.Error("Error applying config map", map[string]interface{}{"ERROR": err.Error()})
 			return intermediaries.Adapter{}, err
 		}
 	} else {
 		// If we do not post config, we need to make sure we at least have one already present
 		_, err := handle.clientSet.CoreV1().ConfigMaps(handle.nameSpace).Get(context.TODO(), adapter.Name, metav1.GetOptions{})
 		if err != nil {
-			fmt.Printf("No config, and none present. %s\n", err.Error())
+			logging.Error("No config, and none present", map[string]interface{}{"ERROR": err.Error()})
 			return intermediaries.Adapter{}, err
 		}
 	}
