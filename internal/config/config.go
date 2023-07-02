@@ -49,6 +49,7 @@ func init() {
 		Database: Kubernetes{
 			KubeConfigPath: viper.GetString("kubernetes.kubeconfig-path"),
 			NameSpace:      viper.GetString("kubernetes.adapter-namespace"),
+			InCluster:      viper.GetBool("kubernetes.in-cluster"),
 		},
 		DeviceStoreURL: viper.GetString("device-store.url"),
 	}
