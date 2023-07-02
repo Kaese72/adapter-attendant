@@ -16,6 +16,7 @@ import (
 	coreapplyv1 "k8s.io/client-go/applyconfigurations/core/v1"
 	metaapplyv1 "k8s.io/client-go/applyconfigurations/meta/v1"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 )
 
@@ -170,10 +171,23 @@ func (handle kubeHandle) ApplyAdapter(adapter intermediaries.Adapter) (intermedi
 
 func NewPureK8sBackend(conf config.Kubernetes) (AdapterAttendantDB, error) {
 	// FIXME Do we want any other kind?
-	kubeConf, err := clientcmd.BuildConfigFromFlags("", conf.KubeConfigPath)
-	if err != nil {
-		return nil, err
+	var kubeConf *rest.Config = nil
+	if conf.KubeConfigPath != "" {
+		var err error = nil
+		kubeConf, err = clientcmd.BuildConfigFromFlags("", conf.KubeConfigPath)
+		if err != nil {
+			return nil, err
+		}
+	} else if conf.InCluster {
+		var err error = nil
+		kubeConf, err = rest.InClusterConfig()
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		return nil, fmt.Errorf("no valid Kubernetes config provided")
 	}
+
 	clientSet, err := kubernetes.NewForConfig(kubeConf)
 	if err != nil {
 		return nil, err

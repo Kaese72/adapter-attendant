@@ -31,6 +31,10 @@ func init() {
 	viper.BindEnv("kubernetes.kubeconfig-path")
 	viper.BindEnv("kubernetes.adapter-namespace")
 	viper.SetDefault("kubernetes.adapter-namespace", "adapters")
+	// kubernetes.in-cluster is treated as a fallback when no config is provided and
+	// thus defaults to true
+	viper.BindEnv("kubernetes.in-cluster")
+	viper.SetDefault("kubernetes.in-cluster", true)
 
 	// # Logging
 	viper.BindEnv("logging.stdout")
