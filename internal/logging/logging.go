@@ -4,7 +4,7 @@ import (
 	"context"
 
 	liblogger "github.com/Kaese72/huemie-lib/logging"
-	"go.elastic.co/apm"
+	"go.elastic.co/apm/v2"
 )
 
 func extractApmDict(ctx context.Context) map[string]interface{} {

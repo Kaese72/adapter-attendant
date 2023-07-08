@@ -11,7 +11,7 @@ import (
 	"github.com/Kaese72/adapter-attendant/internal/logging"
 	"github.com/Kaese72/adapter-attendant/rest/models"
 	"github.com/gorilla/mux"
-	"go.elastic.co/apm/module/apmgorilla"
+	"go.elastic.co/apm/module/apmgorilla/v2"
 )
 
 func ServeHTTPError(err error, writer http.ResponseWriter, ctx context.Context) {
