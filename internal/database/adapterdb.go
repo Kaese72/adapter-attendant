@@ -1,14 +1,16 @@
 package database
 
 import (
+	"context"
+
 	"github.com/Kaese72/adapter-attendant/internal/config"
 	"github.com/Kaese72/adapter-attendant/internal/database/intermediaries"
 )
 
 type AdapterAttendantDB interface {
-	GetAdapter(string) (intermediaries.Adapter, error)
-	GetAdapters() ([]string, error)
-	ApplyAdapter(intermediaries.Adapter) (intermediaries.Adapter, error)
+	GetAdapter(string, context.Context) (intermediaries.Adapter, error)
+	GetAdapters(context.Context) ([]string, error)
+	ApplyAdapter(intermediaries.Adapter, context.Context) (intermediaries.Adapter, error)
 }
 
 func NewAdapterAttendantDB(dbconf config.Kubernetes) (AdapterAttendantDB, error) {

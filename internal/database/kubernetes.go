@@ -7,7 +7,7 @@ import (
 
 	"github.com/Kaese72/adapter-attendant/internal/config"
 	"github.com/Kaese72/adapter-attendant/internal/database/intermediaries"
-	"github.com/Kaese72/huemie-lib/logging"
+	"github.com/Kaese72/adapter-attendant/internal/logging"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -31,16 +31,16 @@ func adapterLabels(adapterName string) map[string]string {
 	return map[string]string{"huemie-adapter": adapterName, "huemie-purpose": "device-adapter"}
 }
 
-func (handle kubeHandle) GetAdapter(adapterName string) (intermediaries.Adapter, error) {
-	deploy, err := handle.clientSet.AppsV1().Deployments(handle.nameSpace).Get(context.TODO(), adapterName, metav1.GetOptions{})
+func (handle kubeHandle) GetAdapter(adapterName string, ctx context.Context) (intermediaries.Adapter, error) {
+	deploy, err := handle.clientSet.AppsV1().Deployments(handle.nameSpace).Get(ctx, adapterName, metav1.GetOptions{})
 	if err != nil {
 		return intermediaries.Adapter{}, err
 	}
-	configMap, err := handle.clientSet.CoreV1().ConfigMaps(handle.nameSpace).Get(context.TODO(), adapterName, metav1.GetOptions{})
+	configMap, err := handle.clientSet.CoreV1().ConfigMaps(handle.nameSpace).Get(ctx, adapterName, metav1.GetOptions{})
 	if err != nil {
 		return intermediaries.Adapter{}, err
 	}
-	service, err := handle.clientSet.CoreV1().Services(handle.nameSpace).Get(context.TODO(), adapterName, metav1.GetOptions{})
+	service, err := handle.clientSet.CoreV1().Services(handle.nameSpace).Get(ctx, adapterName, metav1.GetOptions{})
 	if err != nil {
 		return intermediaries.Adapter{}, err
 	}
@@ -64,9 +64,9 @@ func (handle kubeHandle) GetAdapter(adapterName string) (intermediaries.Adapter,
 	}, nil
 }
 
-func (handle kubeHandle) GetAdapters() ([]string, error) {
+func (handle kubeHandle) GetAdapters(ctx context.Context) ([]string, error) {
 	// FIXME Based LabelSelector on adapterLabels
-	deployList, err := handle.clientSet.AppsV1().Deployments(handle.nameSpace).List(context.TODO(), metav1.ListOptions{LabelSelector: "huemie-purpose=device-adapter"})
+	deployList, err := handle.clientSet.AppsV1().Deployments(handle.nameSpace).List(ctx, metav1.ListOptions{LabelSelector: "huemie-purpose=device-adapter"})
 	if err != nil {
 		return nil, err
 	}
@@ -101,7 +101,7 @@ func (handle kubeHandle) bootstrapBackend() error {
 	return err
 }
 
-func (handle kubeHandle) applyConfig(name string, config map[string]string) (*corev1.ConfigMap, error) {
+func (handle kubeHandle) applyConfig(name string, config map[string]string, ctx context.Context) (*corev1.ConfigMap, error) {
 	// FIXME Define builtin non-overridable configuration
 	config["ENROLL_ADAPTER_KEY"] = name
 	adapterConfig := coreapplyv1.ConfigMapApplyConfiguration{
@@ -109,11 +109,11 @@ func (handle kubeHandle) applyConfig(name string, config map[string]string) (*co
 		ObjectMetaApplyConfiguration: metaapplyv1.ObjectMeta().WithName(name).WithNamespace(handle.nameSpace),
 		Data:                         config,
 	}
-	configMap, err := handle.clientSet.CoreV1().ConfigMaps(handle.nameSpace).Apply(context.TODO(), &adapterConfig, metav1.ApplyOptions{FieldManager: "adapter-attendant"})
+	configMap, err := handle.clientSet.CoreV1().ConfigMaps(handle.nameSpace).Apply(ctx, &adapterConfig, metav1.ApplyOptions{FieldManager: "adapter-attendant"})
 	return configMap, err
 }
 
-func (handle kubeHandle) applyDeployment(name string, image intermediaries.Image) (*appsv1.Deployment, *corev1.Service, error) {
+func (handle kubeHandle) applyDeployment(name string, image intermediaries.Image, ctx context.Context) (*appsv1.Deployment, *corev1.Service, error) {
 	podLabels := adapterLabels(name)
 	selector := metaapplyv1.LabelSelector().WithMatchLabels(podLabels)
 	privateEnvs := coreapplyv1.EnvFromSource().WithConfigMapRef(coreapplyv1.ConfigMapEnvSource().WithName(name))
@@ -126,7 +126,7 @@ func (handle kubeHandle) applyDeployment(name string, image intermediaries.Image
 
 	appliedDeployment, err := handle.clientSet.AppsV1().Deployments(handle.nameSpace).Apply(context.TODO(), deployment, metav1.ApplyOptions{FieldManager: "adapter-attendant"})
 	if err != nil {
-		logging.Error("Error applying Deployment", map[string]interface{}{"ERROR": err.Error()})
+		logging.Error("Error applying Deployment", ctx, map[string]interface{}{"ERROR": err.Error()})
 		return nil, nil, err
 	}
 	servicePortSpec := coreapplyv1.ServicePort().WithAppProtocol("TCP").WithPort(8080).WithTargetPort(intstr.FromInt(8080))
@@ -137,31 +137,32 @@ func (handle kubeHandle) applyDeployment(name string, image intermediaries.Image
 	return appliedDeployment, appliedService, err
 }
 
-func (handle kubeHandle) ApplyAdapter(adapter intermediaries.Adapter) (intermediaries.Adapter, error) {
+func (handle kubeHandle) ApplyAdapter(adapter intermediaries.Adapter, ctx context.Context) (intermediaries.Adapter, error) {
 	// FIXME This function is a piece of crap. I need to figure out a way to make this more REST-y while still;
 	// * Preventing configuration being created without a deployment
 	// * Preventing deployment from being created without configuration
 	// * Allow deployment be updated (image name/tag) without supplying configuration
 	// * Allow configuration be updated without supplying image information
+	// FIXME If the context is cancelled at the wrong time we may leave Kubernets in an inconsitent state
 	if adapter.Config != nil {
 		// If config is supplied we should apply a ConfigMap
-		_, err := handle.applyConfig(adapter.Name, adapter.Config)
+		_, err := handle.applyConfig(adapter.Name, adapter.Config, ctx)
 		if err != nil {
-			logging.Error("Error applying config map", map[string]interface{}{"ERROR": err.Error()})
+			logging.Error("Error applying config map", ctx, map[string]interface{}{"ERROR": err.Error()})
 			return intermediaries.Adapter{}, err
 		}
 	} else {
 		// If we do not post config, we need to make sure we at least have one already present
 		_, err := handle.clientSet.CoreV1().ConfigMaps(handle.nameSpace).Get(context.TODO(), adapter.Name, metav1.GetOptions{})
 		if err != nil {
-			logging.Error("No config, and none present", map[string]interface{}{"ERROR": err.Error()})
+			logging.Error("No config, and none present", ctx, map[string]interface{}{"ERROR": err.Error()})
 			return intermediaries.Adapter{}, err
 		}
 	}
 
 	if adapter.Image != nil {
 		// If image is set, we
-		_, _, err := handle.applyDeployment(adapter.Name, *adapter.Image)
+		_, _, err := handle.applyDeployment(adapter.Name, *adapter.Image, ctx)
 		if err != nil {
 			return adapter, err
 		}
