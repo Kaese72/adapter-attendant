@@ -30,7 +30,6 @@ func init() {
 	// Kubernetes access configuration
 	viper.BindEnv("kubernetes.kubeconfig-path")
 	viper.BindEnv("kubernetes.adapter-namespace")
-	viper.SetDefault("kubernetes.adapter-namespace", "adapters")
 	// kubernetes.in-cluster is treated as a fallback when no config is provided and
 	// thus defaults to true
 	viper.BindEnv("kubernetes.in-cluster")
@@ -43,7 +42,8 @@ func init() {
 
 	// # Device Store
 	viper.BindEnv("device-store.url")
-	viper.SetDefault("device-store.url", "http://device-store.default:8080")
+
+	// FIXME check that the required config options are set
 
 	Loaded = Config{
 		Database: Kubernetes{

@@ -8,6 +8,7 @@ import (
 	"github.com/Kaese72/adapter-attendant/internal/config"
 	"github.com/Kaese72/adapter-attendant/internal/database/intermediaries"
 	"github.com/Kaese72/adapter-attendant/internal/logging"
+	"github.com/pkg/errors"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -34,21 +35,21 @@ func adapterLabels(adapterName string) map[string]string {
 func (handle kubeHandle) GetAdapter(adapterName string, ctx context.Context) (intermediaries.Adapter, error) {
 	deploy, err := handle.clientSet.AppsV1().Deployments(handle.nameSpace).Get(ctx, adapterName, metav1.GetOptions{})
 	if err != nil {
-		return intermediaries.Adapter{}, err
+		return intermediaries.Adapter{}, errors.Wrap(err, "failed to get deployments")
 	}
 	configMap, err := handle.clientSet.CoreV1().ConfigMaps(handle.nameSpace).Get(ctx, adapterName, metav1.GetOptions{})
 	if err != nil {
-		return intermediaries.Adapter{}, err
+		return intermediaries.Adapter{}, errors.Wrap(err, "failed to get config maps")
 	}
 	service, err := handle.clientSet.CoreV1().Services(handle.nameSpace).Get(ctx, adapterName, metav1.GetOptions{})
 	if err != nil {
-		return intermediaries.Adapter{}, err
+		return intermediaries.Adapter{}, errors.Wrap(err, "failed to get service")
 	}
 	//FIXME So far a deployment only consists of one container, but making that assumption is bad practice
 	deployImage := deploy.Spec.Template.Spec.Containers[0].Image
 	splitImage := strings.SplitN(deployImage, ":", 2)
 	if len(splitImage) != 2 {
-		return intermediaries.Adapter{}, fmt.Errorf("image '%s' could not be reasonably split between image name and version", deployImage)
+		return intermediaries.Adapter{}, errors.Errorf("could not reasonably split image into name and version, '%s'", deployImage)
 	}
 	return intermediaries.Adapter{
 		Name: adapterName,
@@ -68,7 +69,7 @@ func (handle kubeHandle) GetAdapters(ctx context.Context) ([]string, error) {
 	// FIXME Based LabelSelector on adapterLabels
 	deployList, err := handle.clientSet.AppsV1().Deployments(handle.nameSpace).List(ctx, metav1.ListOptions{LabelSelector: "huemie-purpose=device-adapter"})
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "failed to get deployments")
 	}
 	resList := []string{}
 	for _, deploy := range deployList.Items {
@@ -83,7 +84,7 @@ func (handle kubeHandle) GetAdapters(ctx context.Context) ([]string, error) {
 func (handle kubeHandle) bootstrapBackend() error {
 	_, err := handle.clientSet.CoreV1().Namespaces().Get(context.TODO(), handle.nameSpace, metav1.GetOptions{})
 	if err != nil {
-		return err
+		return errors.Wrap(err, "failed to get namespaces")
 	}
 
 	bootConf := coreapplyv1.ConfigMapApplyConfiguration{
@@ -96,9 +97,9 @@ func (handle kubeHandle) bootstrapBackend() error {
 	}
 	_, err = handle.clientSet.CoreV1().ConfigMaps(handle.nameSpace).Apply(context.TODO(), &bootConf, metav1.ApplyOptions{FieldManager: "adapter-attendant"})
 	if err != nil {
-		return err
+		return errors.Wrap(err, "failed to apply config map")
 	}
-	return err
+	return nil
 }
 
 func (handle kubeHandle) applyConfig(name string, config map[string]string, ctx context.Context) (*corev1.ConfigMap, error) {
@@ -110,7 +111,7 @@ func (handle kubeHandle) applyConfig(name string, config map[string]string, ctx 
 		Data:                         config,
 	}
 	configMap, err := handle.clientSet.CoreV1().ConfigMaps(handle.nameSpace).Apply(ctx, &adapterConfig, metav1.ApplyOptions{FieldManager: "adapter-attendant"})
-	return configMap, err
+	return configMap, errors.Wrap(err, "failed to apply config map")
 }
 
 func (handle kubeHandle) applyDeployment(name string, image intermediaries.Image, ctx context.Context) (*appsv1.Deployment, *corev1.Service, error) {
@@ -126,15 +127,17 @@ func (handle kubeHandle) applyDeployment(name string, image intermediaries.Image
 
 	appliedDeployment, err := handle.clientSet.AppsV1().Deployments(handle.nameSpace).Apply(context.TODO(), deployment, metav1.ApplyOptions{FieldManager: "adapter-attendant"})
 	if err != nil {
-		logging.Error("Error applying Deployment", ctx, map[string]interface{}{"ERROR": err.Error()})
-		return nil, nil, err
+		return nil, nil, errors.Wrap(err, "failed to apply deployment")
 	}
 	servicePortSpec := coreapplyv1.ServicePort().WithAppProtocol("TCP").WithPort(8080).WithTargetPort(intstr.FromInt(8080))
 	serviceSpec := coreapplyv1.ServiceSpec().WithSelector(podLabels).WithPorts(servicePortSpec)
 	service := coreapplyv1.Service(name, handle.nameSpace).WithSpec(serviceSpec)
 
 	appliedService, err := handle.clientSet.CoreV1().Services(handle.nameSpace).Apply(context.TODO(), service, metav1.ApplyOptions{FieldManager: "adapter-attendant"})
-	return appliedDeployment, appliedService, err
+	if err != nil {
+		return nil, nil, errors.Wrap(err, "failed to apply config map")
+	}
+	return appliedDeployment, appliedService, nil
 }
 
 func (handle kubeHandle) ApplyAdapter(adapter intermediaries.Adapter, ctx context.Context) (intermediaries.Adapter, error) {
@@ -149,14 +152,14 @@ func (handle kubeHandle) ApplyAdapter(adapter intermediaries.Adapter, ctx contex
 		_, err := handle.applyConfig(adapter.Name, adapter.Config, ctx)
 		if err != nil {
 			logging.Error("Error applying config map", ctx, map[string]interface{}{"ERROR": err.Error()})
-			return intermediaries.Adapter{}, err
+			return intermediaries.Adapter{}, errors.Wrap(err, "failed to apply config map")
 		}
 	} else {
 		// If we do not post config, we need to make sure we at least have one already present
 		_, err := handle.clientSet.CoreV1().ConfigMaps(handle.nameSpace).Get(context.TODO(), adapter.Name, metav1.GetOptions{})
 		if err != nil {
 			logging.Error("No config, and none present", ctx, map[string]interface{}{"ERROR": err.Error()})
-			return intermediaries.Adapter{}, err
+			return intermediaries.Adapter{}, errors.Wrap(err, "failed to get config map when none was supplied by user")
 		}
 	}
 
