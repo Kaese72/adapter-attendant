@@ -59,16 +59,12 @@ func InitRest(database database.AdapterAttendantDB) *mux.Router {
 		adapter.Name = deviceID
 
 		if adapter.Image == nil {
-			if err != nil {
-				ServeHTTPError(errors.New("must set image information"), writer, ctx)
-				return
-			}
+			ServeHTTPError(errors.New("must set image information"), writer, ctx)
+			return
 		}
 		if adapter.Config == nil {
-			if err != nil {
-				ServeHTTPError(errors.New("must set config information"), writer, ctx)
-				return
-			}
+			ServeHTTPError(errors.New("must set config information"), writer, ctx)
+			return
 		}
 
 		dbAdapter, err := database.ApplyAdapter(adapter.Intermediary(), ctx)
