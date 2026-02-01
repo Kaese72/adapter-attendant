@@ -1,47 +1,26 @@
 package models
 
-import "github.com/Kaese72/adapter-attendant/internal/database/intermediaries"
-
-type Image struct {
-	Name string `json:"name"`
-	Tag  string `json:"Tag"`
-}
+import (
+	"time"
+)
 
 type Adapter struct {
-	Name    string            `json:"name"`
-	Image   *Image            `json:"image"`
-	Config  map[string]string `json:"config"`
-	Address string            `json:"address"` // readonly
+	ID        int        `json:"id" readOnly:"true"`
+	Name      string     `json:"name"`
+	ImageName string     `json:"imageName"`
+	ImageTag  string     `json:"imageTag"`
+	Created   time.Time  `json:"created" readOnly:"true"`
+	Updated   time.Time  `json:"updated" readOnly:"true"`
+	Synced    *time.Time `json:"synced,omitempty" readOnly:"true"`
+	// Address    string     `json:"address"`
+	// AdapterKey string     `json:"adapterKey"`
 }
 
-func (adapter Adapter) Intermediary() intermediaries.Adapter {
-	var image *intermediaries.Image = nil
-	if adapter.Image != nil {
-		image = &intermediaries.Image{
-			Name: adapter.Image.Name,
-			Tag:  adapter.Image.Tag,
-		}
-	}
-	return intermediaries.Adapter{
-		Name:    adapter.Name,
-		Image:   image,
-		Config:  adapter.Config,
-		Address: adapter.Address,
-	}
-}
-
-func AdapterFromIntermediary(intermediary intermediaries.Adapter) Adapter {
-	var image *Image = nil
-	if intermediary.Image != nil {
-		image = &Image{
-			Name: intermediary.Image.Name,
-			Tag:  intermediary.Image.Tag,
-		}
-	}
-	return Adapter{
-		Name:    intermediary.Name,
-		Image:   image,
-		Config:  intermediary.Config,
-		Address: intermediary.Address,
-	}
+type AdapterConfiguration struct {
+	ID          int       `json:"id" readOnly:"true"`
+	AdapterID   int       `json:"adapterId" readOnly:"true"`
+	ConfigKey   string    `json:"configKey"`
+	ConfigValue string    `json:"configValue"`
+	Created     time.Time `json:"created" readOnly:"true"`
+	Updated     time.Time `json:"updated" readOnly:"true"`
 }

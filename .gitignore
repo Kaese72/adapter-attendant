@@ -1,2 +1,4 @@
 99_local
 config.used.yaml
+.vscode/
+example-data/

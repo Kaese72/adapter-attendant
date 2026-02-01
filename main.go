@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"os"
 
@@ -12,6 +13,8 @@ import (
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/danielgtaylor/huma/v2/adapters/humamux"
 	"github.com/gorilla/mux"
+	"go.elastic.co/apm/module/apmsql"
+	_ "go.elastic.co/apm/module/apmsql/mysql"
 )
 
 func init() {
@@ -19,13 +22,18 @@ func init() {
 }
 
 func main() {
-	dbHandle, err := database.NewAdapterAttendantDB(config.Loaded.Database)
+	kubernetesHandle, err := database.NewPureK8sBackend(config.Loaded.ClusterConfig)
 	if err != nil {
 		logging.Error(err.Error(), context.Background())
 		os.Exit(1)
 	}
 
-	restWebapp := restwebapp.NewWebApp(dbHandle)
+	db, err := apmsql.Open("mysql", fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?parseTime=true&loc=UTC", config.Loaded.Database.User, config.Loaded.Database.Password, config.Loaded.Database.Host, config.Loaded.Database.Port, config.Loaded.Database.Database))
+	if err != nil {
+		logging.Error(err.Error(), context.Background())
+		os.Exit(1)
+	}
+	restWebapp := restwebapp.NewWebApp(kubernetesHandle, db)
 
 	// Create Huma API
 	router := mux.NewRouter()
@@ -35,10 +43,18 @@ func main() {
 	api := humamux.New(router, humaConfig)
 
 	// Adapter Attendant endpoints
-	huma.Get(api, "/adapter-attendant/v0/adapters", restWebapp.GetAdapters)
-	huma.Get(api, "/adapter-attendant/v0/adapters/{name}", restWebapp.GetAdapter)
-	huma.Put(api, "/adapter-attendant/v0/adapters/{name}", restWebapp.PutAdapter)
-	huma.Patch(api, "/adapter-attendant/v0/adapters/{name}", restWebapp.PatchAdapter)
+	// V1 API
+	huma.Get(api, "/adapter-attendant/v1/adapters", restWebapp.GetAdaptersV1)
+	huma.Post(api, "/adapter-attendant/v1/adapters", restWebapp.PostAdapterV1)
+	huma.Get(api, "/adapter-attendant/v1/adapters/{id}", restWebapp.GetAdapterV1)
+	huma.Delete(api, "/adapter-attendant/v1/adapters/{id}", restWebapp.DeleteAdapterV1)
+	huma.Post(api, "/adapter-attendant/v1/adapters/{id}/sync", restWebapp.SyncAdapterV1)
+	//huma.Post(api, "/adapter-attendant/v1/adapters/{id}/update", restWebapp.UpdateAdapterV1)
+	huma.Get(api, "/adapter-attendant/v1/adapters/{id}/address", restWebapp.GetAdapterAddressV1)
+	huma.Get(api, "/adapter-attendant/v1/adapters/{id}/arguments", restWebapp.GetAdapterArgumentsForAdapterV1)
+	huma.Post(api, "/adapter-attendant/v1/adapters/{id}/arguments", restWebapp.PostAdapterArgumentsForAdapterV1)
+	huma.Delete(api, "/adapter-attendant/v1/adapters/{id}/arguments/{argumentId}", restWebapp.DeleteAdapterArgumentsForAdapterV1)
+	huma.Patch(api, "/adapter-attendant/v1/adapters/{adapterId}/arguments/{argumentId}", restWebapp.PatchAdapterArgumentsForAdapterV1)
 
 	// Start the server
 	if err := http.ListenAndServe("0.0.0.0:8080", router); err != nil {
