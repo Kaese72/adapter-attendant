@@ -161,6 +161,11 @@ func (app webApp) SyncAdapterV1(ctx context.Context, input *struct {
 		logging.Error("Error syncing adapter", ctx, map[string]any{"ERROR": err.Error(), "ADAPTER_ID": syncAdapter.ID, "ADAPTER_NAME": syncAdapter.Name})
 		return nil, huma.Error500InternalServerError("Internal Server Error")
 	}
+	err = app.registerAdapterSynced(ctx, syncAdapter.ID)
+	if err != nil {
+		logging.Error("Error registering adapter sync", ctx, map[string]any{"ERROR": err.Error(), "ADAPTER_ID": syncAdapter.ID, "ADAPTER_NAME": syncAdapter.Name})
+		return nil, huma.Error500InternalServerError("Internal Server Error")
+	}
 	return nil, nil
 }
 
@@ -368,4 +373,13 @@ func (app webApp) PatchAdapterArgumentsForAdapterV1(ctx context.Context, input *
 	}{
 		Body: resultConfig,
 	}, nil
+}
+
+// registerSynced updates a device with information about being synced.
+// This is an internal function and does not return API friendly errors.
+func (app webApp) registerAdapterSynced(ctx context.Context, adapterId int) error {
+	// FIXME allow passing in sync time in order to avoid time skew issues
+	updateQuery := "UPDATE adapters SET synced = NOW() WHERE id = ?"
+	_, err := app.db.ExecContext(ctx, updateQuery, adapterId)
+	return err
 }
