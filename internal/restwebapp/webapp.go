@@ -164,6 +164,46 @@ func (app webApp) SyncAdapterV1(ctx context.Context, input *struct {
 	return nil, nil
 }
 
+// UpdateAdapterV1 updates the image tag for an adapter
+func (app webApp) UpdateAdapterV1(ctx context.Context, input *struct {
+	Id   int `path:"id" doc:"the Id of the adapter to update"`
+	Body struct {
+		ImageTag string `json:"imageTag" doc:"the new image tag"`
+	} `body:""`
+}) (*struct {
+	Body models.Adapter
+}, error) {
+	if input.Body.ImageTag == "" {
+		return nil, huma.Error400BadRequest("imageTag is required")
+	}
+	updateQuery := "UPDATE adapters SET imageTag = ? WHERE id = ?"
+	result, err := app.db.ExecContext(ctx, updateQuery, input.Body.ImageTag, input.Id)
+	if err != nil {
+		logging.Error("Database error when updating adapter", ctx, map[string]any{"ERROR": err.Error()})
+		return nil, huma.Error500InternalServerError("Internal Server Error")
+	}
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		logging.Error("Database error when checking adapter update result", ctx, map[string]any{"ERROR": err.Error()})
+		return nil, huma.Error500InternalServerError("Internal Server Error")
+	}
+	if rowsAffected == 0 {
+		return nil, huma.Error404NotFound("adapter not found")
+	}
+	updatedAdapters, err := app.getAdaptersV1(ctx, &input.Id)
+	if err != nil {
+		return nil, err
+	}
+	if len(updatedAdapters) == 0 {
+		return nil, huma.Error404NotFound("adapter not found")
+	}
+	return &struct {
+		Body models.Adapter
+	}{
+		Body: updatedAdapters[0],
+	}, nil
+}
+
 // GetAdapterAddressV1 returns the service address for a synced adapter
 func (app webApp) GetAdapterAddressV1(ctx context.Context, input *struct {
 	Id int `path:"id" doc:"the Id of the adapter to retrieve the address for"`

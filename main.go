@@ -49,7 +49,7 @@ func main() {
 	huma.Get(api, "/adapter-attendant/v1/adapters/{id}", restWebapp.GetAdapterV1)
 	huma.Delete(api, "/adapter-attendant/v1/adapters/{id}", restWebapp.DeleteAdapterV1)
 	huma.Post(api, "/adapter-attendant/v1/adapters/{id}/sync", restWebapp.SyncAdapterV1)
-	//huma.Post(api, "/adapter-attendant/v1/adapters/{id}/update", restWebapp.UpdateAdapterV1)
+	huma.Post(api, "/adapter-attendant/v1/adapters/{id}/update", restWebapp.UpdateAdapterV1)
 	huma.Get(api, "/adapter-attendant/v1/adapters/{id}/address", restWebapp.GetAdapterAddressV1)
 	huma.Get(api, "/adapter-attendant/v1/adapters/{id}/arguments", restWebapp.GetAdapterArgumentsForAdapterV1)
 	huma.Post(api, "/adapter-attendant/v1/adapters/{id}/arguments", restWebapp.PostAdapterArgumentsForAdapterV1)
