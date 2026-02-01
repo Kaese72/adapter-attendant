@@ -89,7 +89,7 @@ func (handle KubeHandle) ApplyAdapter(ctx context.Context, adapterId int, image 
 	// * Allow configuration be updated without supplying image information
 	// FIXME If the context is cancelled at the wrong time we may leave Kubernets in an inconsitent state
 	// FIXME Replace with ArgoCD or similar?
-	resourceName := fmt.Sprintf("adapter.%d", adapterId)
+	resourceName := fmt.Sprintf("adapter-%d", adapterId)
 	jwtToken, err := utility.GenerateAdapterJWT(config.Loaded.Adapters.DeviceStoreJWTSecret, 24*30*12*time.Hour, adapterId)
 	if err != nil {
 		logging.Error("Error generating enrollment token", ctx, map[string]interface{}{"ERROR": err.Error()})
