@@ -185,7 +185,7 @@ func (app webApp) GetAdapterAddressV1(ctx context.Context, input *struct {
 	}
 	// FIXME should probably not assume this address.
 	// Works for now...
-	address := fmt.Sprintf("http://adapter.%d.%s:8080", adapter.ID, config.Loaded.ClusterConfig.NameSpace)
+	address := fmt.Sprintf("http://adapter-%d.%s:8080", adapter.ID, config.Loaded.ClusterConfig.NameSpace)
 	return &struct {
 		Body struct {
 			Address string `json:"address"`
