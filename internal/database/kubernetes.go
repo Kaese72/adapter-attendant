@@ -67,7 +67,7 @@ func (handle KubeHandle) applyDeployment(resourceName string, image string, ctx 
 	return appliedDeployment, appliedService, nil
 }
 
-func (handle KubeHandle) ApplyAdapter(ctx context.Context, adapterId int, image string, configuration map[string]string) error {
+func (handle KubeHandle) ApplyAdapter(ctx context.Context, adapterId int, image string, userProvidedConfiguration map[string]string) error {
 	// FIXME This function is a piece of crap. I need to figure out a way to make this more REST-y while still;
 	// * Preventing configuration being created without a deployment
 	// * Preventing deployment from being created without configuration
@@ -82,10 +82,17 @@ func (handle KubeHandle) ApplyAdapter(ctx context.Context, adapterId int, image 
 		return errors.Wrap(err, "failed to generate enrollment token")
 	}
 	// Add mandatory configuration that is not visible to user
-	configuration["HUEMIE_ENROLL_STORE"] = config.Loaded.Adapters.DeviceStoreURL
-	configuration["HUEMIE_ENROLL_TOKEN"] = jwtToken
+	kubernetesConfiguration := map[string]string{
+		"HUEMIE_ENROLL_TOKEN": jwtToken,
+		"HUEMIE_ENROLL_STORE": config.Loaded.Adapters.DeviceStoreURL,
+	}
+	// User provided configuration needs to be namespaced with HUEMIE_
+	// To prevent collision with system provided configuration
+	for k, v := range userProvidedConfiguration {
+		kubernetesConfiguration[fmt.Sprintf("HUEMIE_%s", k)] = v
+	}
 	// If config is supplied we should apply a ConfigMap
-	_, err = handle.applyConfig(ctx, resourceName, configuration)
+	_, err = handle.applyConfig(ctx, resourceName, kubernetesConfiguration)
 	if err != nil {
 		logging.Error("Error applying config map", ctx, map[string]interface{}{"ERROR": err.Error()})
 		return errors.Wrap(err, "failed to apply config map")
