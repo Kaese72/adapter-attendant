@@ -30,20 +30,6 @@ func adapterLabels(adapterName string) map[string]string {
 	return map[string]string{"huemie-adapter": adapterName, "huemie-purpose": "device-adapter"}
 }
 
-func (handle KubeHandle) GetAdapters(ctx context.Context) ([]string, error) {
-	// FIXME Based LabelSelector on adapterLabels
-	deployList, err := handle.clientSet.AppsV1().Deployments(handle.nameSpace).List(ctx, metav1.ListOptions{LabelSelector: "huemie-purpose=device-adapter"})
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to get deployments")
-	}
-	resList := []string{}
-	for _, deploy := range deployList.Items {
-		resList = append(resList, deploy.Name)
-	}
-
-	return resList, nil
-}
-
 func (handle KubeHandle) applyConfig(ctx context.Context, resourceName string, configuration map[string]string) (*corev1.ConfigMap, error) {
 	// FIXME Define builtin non-overridable configuration
 	// FIXME Deep copy
@@ -96,8 +82,8 @@ func (handle KubeHandle) ApplyAdapter(ctx context.Context, adapterId int, image 
 		return errors.Wrap(err, "failed to generate enrollment token")
 	}
 	// Add mandatory configuration that is not visible to user
-	configuration["ENROLL_STORE"] = config.Loaded.Adapters.DeviceStoreURL
-	configuration["ENROLL_TOKEN"] = jwtToken
+	configuration["HUEMIE_ENROLL_STORE"] = config.Loaded.Adapters.DeviceStoreURL
+	configuration["HUEMIE_ENROLL_TOKEN"] = jwtToken
 	// If config is supplied we should apply a ConfigMap
 	_, err = handle.applyConfig(ctx, resourceName, configuration)
 	if err != nil {
