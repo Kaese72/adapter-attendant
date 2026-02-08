@@ -82,14 +82,15 @@ func (handle KubeHandle) ApplyAdapter(ctx context.Context, adapterId int, image 
 		return errors.Wrap(err, "failed to generate enrollment token")
 	}
 	// Add mandatory configuration that is not visible to user
+	// System provided configuration is namespace with "HUEMIE_".
 	kubernetesConfiguration := map[string]string{
 		"HUEMIE_ENROLL_TOKEN": jwtToken,
 		"HUEMIE_ENROLL_STORE": config.Loaded.Adapters.DeviceStoreURL,
 	}
-	// User provided configuration needs to be namespaced with HUEMIE_
+	// User provided configuration needs to be namespaced with "ADAPTER_"
 	// To prevent collision with system provided configuration
 	for k, v := range userProvidedConfiguration {
-		kubernetesConfiguration[fmt.Sprintf("HUEMIE_%s", k)] = v
+		kubernetesConfiguration[fmt.Sprintf("ADAPTER_%s", k)] = v
 	}
 	// If config is supplied we should apply a ConfigMap
 	_, err = handle.applyConfig(ctx, resourceName, kubernetesConfiguration)
