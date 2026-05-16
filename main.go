@@ -44,7 +44,7 @@ func main() {
 
 	// Create Huma API
 	router := mux.NewRouter()
-	router.Use(middleware.UseTokenMiddleware(pubKey, "/adapter-attendant/openapi", "/adapter-attendant/docs"))
+	router.Use(middleware.UseTokenMiddleware(pubKey, "/adapter-attendant/openapi", "/adapter-attendant/docs", "/adapter-attendant-internal/"))
 	humaConfig := huma.DefaultConfig("adapter-attendant", "1.0.0")
 	humaConfig.OpenAPIPath = "/adapter-attendant/openapi"
 	humaConfig.DocsPath = "/adapter-attendant/docs"
@@ -63,6 +63,9 @@ func main() {
 	huma.Post(api, "/adapter-attendant/v1/adapters/{id}/arguments", restWebapp.PostAdapterArgumentsForAdapterV1)
 	huma.Delete(api, "/adapter-attendant/v1/adapters/{id}/arguments/{argumentId}", restWebapp.DeleteAdapterArgumentsForAdapterV1)
 	huma.Patch(api, "/adapter-attendant/v1/adapters/{adapterId}/arguments/{argumentId}", restWebapp.PatchAdapterArgumentsForAdapterV1)
+
+	// Internal endpoints (no auth) — cluster-internal use only, must not be exposed via ingress
+	huma.Get(api, "/adapter-attendant-internal/v1/adapters/{id}/address", restWebapp.GetAdapterAddressV1)
 
 	// Start the server
 	if err := http.ListenAndServe("0.0.0.0:8080", router); err != nil {
