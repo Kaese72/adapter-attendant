@@ -3,7 +3,7 @@ module github.com/Kaese72/adapter-attendant
 go 1.23.0
 
 require (
-	github.com/Kaese72/huemie-lib v0.0.1
+	github.com/Kaese72/huemie-lib v0.0.6
 	github.com/danielgtaylor/huma/v2 v2.34.1
 	github.com/pkg/errors v0.9.1
 	go.elastic.co/apm/v2 v2.4.3

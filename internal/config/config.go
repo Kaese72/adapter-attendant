@@ -24,9 +24,15 @@ type Adapters struct {
 	DeviceStoreURL       string `json:"device-store-url" mapstructure:"device-store-url"`
 	DeviceStoreJWTSecret string `json:"device-store-jwt-secret" mapstructure:"device-store-jwt-secret"`
 }
+
+type Auth struct {
+	RSAPublicKeyPath string `json:"rsa-public-key-path" mapstructure:"rsa-public-key-path"`
+}
+
 type Config struct {
 	ClusterConfig Kubernetes `json:"cluster-config" mapstructure:"cluster-config"`
 	Adapters      Adapters   `json:"adapters" mapstructure:"adapters"`
+	Auth          Auth       `json:"auth" mapstructure:"auth"`
 	Database      Database   `json:"database" mapstructure:"database"`
 }
 
@@ -57,6 +63,9 @@ func init() {
 	viper.BindEnv("adapters.device-store-url")
 	viper.BindEnv("adapters.device-store-jwt-secret")
 
+	// # Authentication service public key (RS256 use-token verification)
+	viper.BindEnv("auth.rsa-public-key-path")
+
 	// # Database configuration, if left out.
 	viper.BindEnv("database.host")
 	viper.BindEnv("database.port")
@@ -77,6 +86,9 @@ func init() {
 		Adapters: Adapters{
 			DeviceStoreURL:       viper.GetString("adapters.device-store-url"),
 			DeviceStoreJWTSecret: viper.GetString("adapters.device-store-jwt-secret"),
+		},
+		Auth: Auth{
+			RSAPublicKeyPath: viper.GetString("auth.rsa-public-key-path"),
 		},
 		Database: Database{
 			Host:     viper.GetString("database.host"),

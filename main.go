@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 
+	"github.com/Kaese72/huemie-lib/middleware"
 	"github.com/Kaese72/adapter-attendant/internal/config"
 	"github.com/Kaese72/adapter-attendant/internal/database"
 	"github.com/Kaese72/adapter-attendant/internal/logging"
@@ -35,8 +36,15 @@ func main() {
 	}
 	restWebapp := restwebapp.NewWebApp(kubernetesHandle, db)
 
+	pubKey, err := middleware.LoadPublicKeyFromFile(config.Loaded.Auth.RSAPublicKeyPath)
+	if err != nil {
+		logging.Error(err.Error(), context.Background())
+		os.Exit(1)
+	}
+
 	// Create Huma API
 	router := mux.NewRouter()
+	router.Use(middleware.UseTokenMiddleware(pubKey, "/adapter-attendant/openapi", "/adapter-attendant/docs"))
 	humaConfig := huma.DefaultConfig("adapter-attendant", "1.0.0")
 	humaConfig.OpenAPIPath = "/adapter-attendant/openapi"
 	humaConfig.DocsPath = "/adapter-attendant/docs"
