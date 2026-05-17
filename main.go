@@ -42,33 +42,40 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Create Huma API
-	router := mux.NewRouter()
-	router.Use(middleware.UseTokenMiddleware(pubKey, "/adapter-attendant/openapi", "/adapter-attendant/docs", "/adapter-attendant-internal/"))
-	humaConfig := huma.DefaultConfig("adapter-attendant", "1.0.0")
-	humaConfig.OpenAPIPath = "/adapter-attendant/openapi"
-	humaConfig.DocsPath = "/adapter-attendant/docs"
-	api := humamux.New(router, humaConfig)
+	// Public router (adapter-attendant)
+	publicRouter := mux.NewRouter()
+	publicRouter.Use(middleware.UseTokenMiddleware(pubKey, "/adapter-attendant/openapi", "/adapter-attendant/docs"))
+	publicHumaConfig := huma.DefaultConfig("adapter-attendant", "1.0.0")
+	publicHumaConfig.OpenAPIPath = "/adapter-attendant/openapi"
+	publicHumaConfig.DocsPath = "/adapter-attendant/docs"
+	publicAPI := humamux.New(publicRouter, publicHumaConfig)
 
-	// Adapter Attendant endpoints
-	// V1 API
-	huma.Get(api, "/adapter-attendant/v1/adapters", restWebapp.GetAdaptersV1)
-	huma.Post(api, "/adapter-attendant/v1/adapters", restWebapp.PostAdapterV1)
-	huma.Get(api, "/adapter-attendant/v1/adapters/{id}", restWebapp.GetAdapterV1)
-	huma.Delete(api, "/adapter-attendant/v1/adapters/{id}", restWebapp.DeleteAdapterV1)
-	huma.Post(api, "/adapter-attendant/v1/adapters/{id}/sync", restWebapp.SyncAdapterV1)
-	huma.Post(api, "/adapter-attendant/v1/adapters/{id}/update", restWebapp.UpdateAdapterV1)
-	huma.Get(api, "/adapter-attendant/v1/adapters/{id}/address", restWebapp.GetAdapterAddressV1)
-	huma.Get(api, "/adapter-attendant/v1/adapters/{id}/arguments", restWebapp.GetAdapterArgumentsForAdapterV1)
-	huma.Post(api, "/adapter-attendant/v1/adapters/{id}/arguments", restWebapp.PostAdapterArgumentsForAdapterV1)
-	huma.Delete(api, "/adapter-attendant/v1/adapters/{id}/arguments/{argumentId}", restWebapp.DeleteAdapterArgumentsForAdapterV1)
-	huma.Patch(api, "/adapter-attendant/v1/adapters/{adapterId}/arguments/{argumentId}", restWebapp.PatchAdapterArgumentsForAdapterV1)
+	huma.Get(publicAPI, "/adapter-attendant/v1/adapters", restWebapp.GetAdaptersV1)
+	huma.Post(publicAPI, "/adapter-attendant/v1/adapters", restWebapp.PostAdapterV1)
+	huma.Get(publicAPI, "/adapter-attendant/v1/adapters/{id}", restWebapp.GetAdapterV1)
+	huma.Delete(publicAPI, "/adapter-attendant/v1/adapters/{id}", restWebapp.DeleteAdapterV1)
+	huma.Post(publicAPI, "/adapter-attendant/v1/adapters/{id}/sync", restWebapp.SyncAdapterV1)
+	huma.Post(publicAPI, "/adapter-attendant/v1/adapters/{id}/update", restWebapp.UpdateAdapterV1)
+	huma.Get(publicAPI, "/adapter-attendant/v1/adapters/{id}/address", restWebapp.GetAdapterAddressV1)
+	huma.Get(publicAPI, "/adapter-attendant/v1/adapters/{id}/arguments", restWebapp.GetAdapterArgumentsForAdapterV1)
+	huma.Post(publicAPI, "/adapter-attendant/v1/adapters/{id}/arguments", restWebapp.PostAdapterArgumentsForAdapterV1)
+	huma.Delete(publicAPI, "/adapter-attendant/v1/adapters/{id}/arguments/{argumentId}", restWebapp.DeleteAdapterArgumentsForAdapterV1)
+	huma.Patch(publicAPI, "/adapter-attendant/v1/adapters/{adapterId}/arguments/{argumentId}", restWebapp.PatchAdapterArgumentsForAdapterV1)
 
-	// Internal endpoints (no auth) — cluster-internal use only, must not be exposed via ingress
-	huma.Get(api, "/adapter-attendant-internal/v1/adapters/{id}/address", restWebapp.GetAdapterAddressV1)
+	// Internal router (adapter-attendant-internal) — no auth, restrict via NetworkPolicy
+	internalRouter := mux.NewRouter()
+	internalAPI := humamux.New(internalRouter, huma.DefaultConfig("adapter-attendant-internal", "1.0.0"))
 
-	// Start the server
-	if err := http.ListenAndServe("0.0.0.0:8080", router); err != nil {
+	huma.Get(internalAPI, "/adapter-attendant-internal/v1/adapters/{id}/address", restWebapp.GetAdapterAddressV1)
+
+	go func() {
+		if err := http.ListenAndServe(fmt.Sprintf("0.0.0.0:%d", config.Loaded.InternalPort), internalRouter); err != nil {
+			logging.Error(err.Error(), context.Background())
+			os.Exit(1)
+		}
+	}()
+
+	if err := http.ListenAndServe(fmt.Sprintf("0.0.0.0:%d", config.Loaded.PublicPort), publicRouter); err != nil {
 		logging.Error(err.Error(), context.Background())
 		os.Exit(1)
 	}

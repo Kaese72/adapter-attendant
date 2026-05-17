@@ -34,6 +34,8 @@ type Config struct {
 	Adapters      Adapters   `json:"adapters" mapstructure:"adapters"`
 	Auth          Auth       `json:"auth" mapstructure:"auth"`
 	Database      Database   `json:"database" mapstructure:"database"`
+	PublicPort    int        `json:"public-port" mapstructure:"public-port"`
+	InternalPort  int        `json:"internal-port" mapstructure:"internal-port"`
 }
 
 // Loaded contains all configuration which was loaded in when the application started
@@ -66,6 +68,12 @@ func init() {
 	// # Authentication service public key (RS256 use-token verification)
 	viper.BindEnv("auth.rsa-public-key-path")
 
+	// # Ports
+	viper.BindEnv("public-port")
+	viper.SetDefault("public-port", 8080)
+	viper.BindEnv("internal-port")
+	viper.SetDefault("internal-port", 8081)
+
 	// # Database configuration, if left out.
 	viper.BindEnv("database.host")
 	viper.BindEnv("database.port")
@@ -97,5 +105,7 @@ func init() {
 			Password: viper.GetString("database.password"),
 			Database: viper.GetString("database.database"),
 		},
+		PublicPort:   viper.GetInt("public-port"),
+		InternalPort: viper.GetInt("internal-port"),
 	}
 }
