@@ -27,7 +27,11 @@ type KubeHandle struct {
 }
 
 func adapterLabels(adapterName string) map[string]string {
-	return map[string]string{"huemie-adapter": adapterName, "huemie-purpose": "device-adapter"}
+	return map[string]string{
+		"huemie-adapter":              adapterName,
+		"huemie-purpose":              "device-adapter",
+		"huemie.space/service-role":   "adapter",
+	}
 }
 
 func (handle KubeHandle) applyConfig(ctx context.Context, resourceName string, configuration map[string]string) (*corev1.ConfigMap, error) {
