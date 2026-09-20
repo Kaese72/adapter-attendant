@@ -6,11 +6,11 @@ import (
 	"net/http"
 	"os"
 
-	"github.com/Kaese72/huemie-lib/middleware"
 	"github.com/Kaese72/adapter-attendant/internal/config"
 	"github.com/Kaese72/adapter-attendant/internal/database"
 	"github.com/Kaese72/adapter-attendant/internal/logging"
 	"github.com/Kaese72/adapter-attendant/internal/restwebapp"
+	"github.com/Kaese72/authentication/usertoken"
 	"github.com/danielgtaylor/huma/v2"
 	"github.com/danielgtaylor/huma/v2/adapters/humamux"
 	"github.com/gorilla/mux"
@@ -36,7 +36,7 @@ func main() {
 	}
 	restWebapp := restwebapp.NewWebApp(kubernetesHandle, db)
 
-	pubKey, err := middleware.LoadPublicKeyFromFile(config.Loaded.Auth.RSAPublicKeyPath)
+	pubKey, err := usertoken.LoadPublicKeyFromFile(config.Loaded.Auth.RSAPublicKeyPath)
 	if err != nil {
 		logging.Error(err.Error(), context.Background())
 		os.Exit(1)
@@ -44,7 +44,7 @@ func main() {
 
 	// Public router (adapter-attendant)
 	publicRouter := mux.NewRouter()
-	publicRouter.Use(middleware.UseTokenMiddleware(pubKey, "/adapter-attendant/openapi", "/adapter-attendant/docs"))
+	publicRouter.Use(usertoken.Middleware(pubKey, "/adapter-attendant/openapi", "/adapter-attendant/docs"))
 	publicHumaConfig := huma.DefaultConfig("adapter-attendant", "1.0.0")
 	publicHumaConfig.OpenAPIPath = "/adapter-attendant/openapi"
 	publicHumaConfig.DocsPath = "/adapter-attendant/docs"
