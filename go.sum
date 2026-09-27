@@ -42,6 +42,8 @@ github.com/Kaese72/authentication v0.0.5 h1:MrDSrti155frOYP8c3IVwNIvdCAIJEiB6aqc
 github.com/Kaese72/authentication v0.0.5/go.mod h1:YMcnLWcqkd69gNRpE6hDG6MpQ1CgszRr3umh2/QkeUU=
 github.com/Kaese72/huemie-lib v0.0.7 h1:FIsNgUybMof/DTK+iHSGDGFeysXPGWAGti2vlBwFZ2k=
 github.com/Kaese72/huemie-lib v0.0.7/go.mod h1:we4aeIRn1DeWn93rcQaBcWsXKBWCEtWGrLjPqkmjoVQ=
+github.com/Kaese72/huemie-lib v0.0.8 h1:4wS+tk6JIKLFgWV69zbcDQDeEojuqndpIY3Omn465h8=
+github.com/Kaese72/huemie-lib v0.0.8/go.mod h1:we4aeIRn1DeWn93rcQaBcWsXKBWCEtWGrLjPqkmjoVQ=
 github.com/PuerkitoBio/purell v1.1.1 h1:WEQqlqaGbrPkxLJWfBwQmfEAE1Z7ONdDLqrN38tNFfI=
 github.com/PuerkitoBio/purell v1.1.1/go.mod h1:c11w/QuzBsJSee3cPx9rAFu61PvFxuPbtSwDGJws/X0=
 github.com/PuerkitoBio/urlesc v0.0.0-20170810143723-de5bf2ad4578 h1:d+Bc7a5rLufV/sSk/8dngufqelfh6jnri85riMAaF/M=

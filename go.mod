@@ -4,7 +4,7 @@ go 1.25.0
 
 require (
 	github.com/Kaese72/authentication v0.0.5
-	github.com/Kaese72/huemie-lib v0.0.7
+	github.com/Kaese72/huemie-lib v0.0.8
 	github.com/danielgtaylor/huma/v2 v2.34.1
 	github.com/pkg/errors v0.9.1
 	go.elastic.co/apm/v2 v2.4.3

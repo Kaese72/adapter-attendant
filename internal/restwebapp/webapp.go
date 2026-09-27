@@ -22,14 +22,18 @@ var adapterFilters = map[string]libquery.FieldSpec{
 	"name":      libquery.Merge(libquery.TextOperators("name")),
 	"imageName": libquery.Merge(libquery.TextOperators("imageName")),
 	"imageTag":  libquery.Merge(libquery.TextOperators("imageTag")),
+	"created":   libquery.Merge(libquery.DateOperators("created")),
+	"updated":   libquery.Merge(libquery.DateOperators("updated")),
 }
 
 // adapterSortFields are the fields "sort" may reference for GetAdaptersV1.
 var adapterSortFields = map[string]string{
-	"id":      "id",
-	"name":    "name",
-	"created": "created",
-	"updated": "updated",
+	"id":        "id",
+	"name":      "name",
+	"imageName": "imageName",
+	"imageTag":  "imageTag",
+	"created":   "created",
+	"updated":   "updated",
 }
 
 // paginationClause returns the SQL "LIMIT ? OFFSET ?" fragment and its
