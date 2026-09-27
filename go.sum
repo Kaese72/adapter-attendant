@@ -40,6 +40,8 @@ github.com/BurntSushi/toml v0.3.1/go.mod h1:xHWCNGjB5oqiDr8zfno3MHue2Ht5sIBksp03
 github.com/BurntSushi/xgb v0.0.0-20160522181843-27f122750802/go.mod h1:IVnqGOEym/WlBOVXweHU+Q+/VP0lqqI8lqeDx9IjBqo=
 github.com/Kaese72/authentication v0.0.4 h1:IjE8B3EPGPzzfLXHorKhPLOb2xT2Bz1nz5E/z/Fn8V4=
 github.com/Kaese72/authentication v0.0.4/go.mod h1:YMcnLWcqkd69gNRpE6hDG6MpQ1CgszRr3umh2/QkeUU=
+github.com/Kaese72/authentication v0.0.5 h1:MrDSrti155frOYP8c3IVwNIvdCAIJEiB6aqcki/M0aM=
+github.com/Kaese72/authentication v0.0.5/go.mod h1:YMcnLWcqkd69gNRpE6hDG6MpQ1CgszRr3umh2/QkeUU=
 github.com/Kaese72/huemie-lib v0.0.6 h1:9Rclgu5008r13ymW9ffo7C+GGhWZoxvXDsWQ1NmMghw=
 github.com/Kaese72/huemie-lib v0.0.6/go.mod h1:iq14glyPZmZuCb9dEgZ1aOHnjf4nTHtuHXABhVB6WnI=
 github.com/PuerkitoBio/purell v1.1.1 h1:WEQqlqaGbrPkxLJWfBwQmfEAE1Z7ONdDLqrN38tNFfI=
@@ -376,6 +378,8 @@ golang.org/x/crypto v0.0.0-20200323165209-0ec3e9974c59/go.mod h1:LzIPMQfyMNhhGPh
 golang.org/x/crypto v0.0.0-20200622213623-75b288015ac9/go.mod h1:LzIPMQfyMNhhGPhUkYOs5KpL4U8rLKemX1yGLhDgUto=
 golang.org/x/crypto v0.0.0-20210421170649-83a5a9bb288b/go.mod h1:T9bdIzuCu7OtxOm1hfPfRQxPLYneinmdGuTeoZ9dtd4=
 golang.org/x/crypto v0.0.0-20220722155217-630584e8d5aa/go.mod h1:IxCIyHEi3zRg3s0A5j5BB6A9Jmi73HwBIUl50j+osU4=
+golang.org/x/crypto v0.38.0 h1:jt+WWG8IZlBnVbomuhg2Mdq0+BBQaHbtqHEFEigjUV8=
+golang.org/x/crypto v0.38.0/go.mod h1:MvrbAqul58NNYPKnOra203SB9vpuZW0e+RRZV+Ggqjw=
 golang.org/x/exp v0.0.0-20190121172915-509febef88a4/go.mod h1:CJ0aWSM057203Lf6IL+f9T1iT9GByDxfZKAQTCR3kQA=
 golang.org/x/exp v0.0.0-20190306152737-a1d7652674e8/go.mod h1:CJ0aWSM057203Lf6IL+f9T1iT9GByDxfZKAQTCR3kQA=
 golang.org/x/exp v0.0.0-20190510132918-efd6b22b2522/go.mod h1:ZjyILWgesfNpC6sMxTJOJm9Kp84zZh5NQWvqDGG3Qr8=

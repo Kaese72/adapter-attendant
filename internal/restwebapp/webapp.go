@@ -9,8 +9,43 @@ import (
 	"github.com/Kaese72/adapter-attendant/internal/database"
 	"github.com/Kaese72/adapter-attendant/internal/logging"
 	"github.com/Kaese72/adapter-attendant/rest/models"
+	"github.com/Kaese72/authentication/usertoken"
 	"github.com/danielgtaylor/huma/v2"
 )
+
+// requireAdaptersView/requireAdaptersModify return a huma error unless the
+// caller (as put in ctx by usertoken.Middleware) may view/modify adapters.
+// Every endpoint in this file calls one of the two first; admins always pass.
+func requireAdaptersView(ctx context.Context) error {
+	permissions, ok := usertoken.PermissionsFromContext(ctx)
+	if !ok || !permissions.HasView(usertoken.ResourceAdapters) {
+		return huma.Error403Forbidden("view access to adapters is required")
+	}
+	return nil
+}
+
+func requireAdaptersModify(ctx context.Context) error {
+	permissions, ok := usertoken.PermissionsFromContext(ctx)
+	if !ok || !permissions.HasModify(usertoken.ResourceAdapters) {
+		return huma.Error403Forbidden("modify access to adapters is required")
+	}
+	return nil
+}
+
+// requireAdaptersViewIfPresent is GetAdapterAddressV1's check: that endpoint
+// is also registered on the unauthenticated internal router that device-store
+// calls through (see main.go - restricted by NetworkPolicy instead of a
+// token), where PermissionsFromContext reports !ok since no middleware ever
+// ran. Treat that as the trusted internal caller rather than "no access", and
+// only enforce the permission when a token context is actually present (i.e.
+// the public router was used).
+func requireAdaptersViewIfPresent(ctx context.Context) error {
+	permissions, ok := usertoken.PermissionsFromContext(ctx)
+	if ok && !permissions.HasView(usertoken.ResourceAdapters) {
+		return huma.Error403Forbidden("view access to adapters is required")
+	}
+	return nil
+}
 
 type webApp struct {
 	kubernetes database.KubeHandle
@@ -29,6 +64,9 @@ func (app webApp) GetAdaptersV1(ctx context.Context, input *struct {
 }) (*struct {
 	Body []models.Adapter
 }, error) {
+	if err := requireAdaptersView(ctx); err != nil {
+		return nil, err
+	}
 	retAdapters, err := app.getAdaptersV1(ctx, nil)
 	if err != nil {
 		return nil, err
@@ -74,6 +112,9 @@ func (app webApp) GetAdapterV1(ctx context.Context, input *struct {
 }) (*struct {
 	Body models.Adapter
 }, error) {
+	if err := requireAdaptersView(ctx); err != nil {
+		return nil, err
+	}
 	retAdapters, err := app.getAdaptersV1(ctx, &input.Id)
 	if err != nil {
 		return nil, err
@@ -94,6 +135,9 @@ func (app webApp) PostAdapterV1(ctx context.Context, input *struct {
 }) (*struct {
 	Body models.Adapter
 }, error) {
+	if err := requireAdaptersModify(ctx); err != nil {
+		return nil, err
+	}
 	// Override adapter.Name based on REST endpoint
 	query := `INSERT IGNORE INTO adapters (name, imageName, imageTag) 
 			  VALUES (?, ?, ?)
@@ -121,6 +165,9 @@ func (app webApp) DeleteAdapterV1(ctx context.Context, input *struct {
 	Id int `path:"id" doc:"the Id of the adapter to delete"`
 }) (*struct {
 }, error) {
+	if err := requireAdaptersModify(ctx); err != nil {
+		return nil, err
+	}
 	// Override adapter.Name based on REST endpoint
 	query := `DELETE FROM adapters WHERE id = ?`
 	_, err := app.db.ExecContext(ctx, query, input.Id)
@@ -139,6 +186,9 @@ func (app webApp) SyncAdapterV1(ctx context.Context, input *struct {
 	Id int `path:"id" doc:"the Id of the adapter to sync"`
 }) (*struct {
 }, error) {
+	if err := requireAdaptersModify(ctx); err != nil {
+		return nil, err
+	}
 	syncAdapters, err := app.getAdaptersV1(ctx, &input.Id)
 	if err != nil {
 		return nil, err
@@ -178,6 +228,9 @@ func (app webApp) UpdateAdapterV1(ctx context.Context, input *struct {
 }) (*struct {
 	Body models.Adapter
 }, error) {
+	if err := requireAdaptersModify(ctx); err != nil {
+		return nil, err
+	}
 	if input.Body.ImageTag == "" {
 		return nil, huma.Error400BadRequest("imageTag is required")
 	}
@@ -217,6 +270,9 @@ func (app webApp) GetAdapterAddressV1(ctx context.Context, input *struct {
 		Address string `json:"address"`
 	}
 }, error) {
+	if err := requireAdaptersViewIfPresent(ctx); err != nil {
+		return nil, err
+	}
 	adapters, err := app.getAdaptersV1(ctx, &input.Id)
 	if err != nil {
 		return nil, err
@@ -250,6 +306,9 @@ func (app webApp) GetAdapterArgumentsForAdapterV1(ctx context.Context, input *st
 }) (*struct {
 	Body []models.AdapterConfiguration
 }, error) {
+	if err := requireAdaptersView(ctx); err != nil {
+		return nil, err
+	}
 	configurations, err := app.getAdapterArgumentsV1(ctx, input.Id)
 	if err != nil {
 		return nil, err
@@ -294,6 +353,9 @@ func (app webApp) PostAdapterArgumentsForAdapterV1(ctx context.Context, input *s
 }) (*struct {
 	Body models.AdapterConfiguration
 }, error) {
+	if err := requireAdaptersModify(ctx); err != nil {
+		return nil, err
+	}
 	query := `INSERT IGNORE INTO adapterConfiguration (adapterId, configKey, configValue)
 			  VALUES (?, ?, ?)
 			  RETURNING id, adapterId, configKey, configValue, created, updated`
@@ -320,6 +382,9 @@ func (app webApp) DeleteAdapterArgumentsForAdapterV1(ctx context.Context, input 
 	ArgumentId int `path:"argumentId" doc:"the Id of the configuration entry to delete"`
 }) (*struct {
 }, error) {
+	if err := requireAdaptersModify(ctx); err != nil {
+		return nil, err
+	}
 	query := "DELETE FROM adapterConfiguration WHERE id = ? AND adapterId = ?"
 	result, err := app.db.ExecContext(ctx, query, input.ArgumentId, input.Id)
 	if err != nil {
@@ -345,6 +410,9 @@ func (app webApp) PatchAdapterArgumentsForAdapterV1(ctx context.Context, input *
 }) (*struct {
 	Body models.AdapterConfiguration
 }, error) {
+	if err := requireAdaptersModify(ctx); err != nil {
+		return nil, err
+	}
 	updateQuery := `UPDATE adapterConfiguration
 				   SET configKey = ?, configValue = ?
 				   WHERE adapterId = ? AND id = ?`
