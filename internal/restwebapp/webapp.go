@@ -4,14 +4,62 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strings"
 
 	"github.com/Kaese72/adapter-attendant/internal/config"
 	"github.com/Kaese72/adapter-attendant/internal/database"
 	"github.com/Kaese72/adapter-attendant/internal/logging"
 	"github.com/Kaese72/adapter-attendant/rest/models"
 	"github.com/Kaese72/authentication/usertoken"
+	// aliased: getAdaptersV1 (below, same file) builds its SQL as a local
+	// "query" variable, which would otherwise shadow the package.
+	libquery "github.com/Kaese72/huemie-lib/query"
 	"github.com/danielgtaylor/huma/v2"
 )
+
+// adapterFilters defines what filters are available for the adapters model.
+var adapterFilters = map[string]libquery.FieldSpec{
+	"name":      libquery.Merge(libquery.TextOperators("name")),
+	"imageName": libquery.Merge(libquery.TextOperators("imageName")),
+	"imageTag":  libquery.Merge(libquery.TextOperators("imageTag")),
+}
+
+// adapterSortFields are the fields "sort" may reference for GetAdaptersV1.
+var adapterSortFields = map[string]string{
+	"id":      "id",
+	"name":    "name",
+	"created": "created",
+	"updated": "updated",
+}
+
+// paginationClause returns the SQL "LIMIT ? OFFSET ?" fragment and its
+// arguments for the given pagination. A zero Limit means unbounded, in which
+// case no clause is applied (used by internal single-id lookups below).
+func paginationClause(pagination libquery.Pagination) (string, []any) {
+	if pagination.Limit <= 0 {
+		return "", nil
+	}
+	offset := pagination.Offset
+	if offset < 0 {
+		offset = 0
+	}
+	return " LIMIT ? OFFSET ?", []any{pagination.Limit, offset}
+}
+
+// countAdapters executes "SELECT COUNT(*) FROM adapters [WHERE <whereClause>]"
+// and returns the total number of matching rows, ignoring pagination.
+func countAdapters(ctx context.Context, db *sql.DB, whereClause string, args []any) (int, error) {
+	q := "SELECT COUNT(*) FROM adapters"
+	if whereClause != "" {
+		q += " WHERE " + whereClause
+	}
+	var total int
+	row := db.QueryRowContext(ctx, q, args...)
+	if err := row.Scan(&total); err != nil {
+		return 0, err
+	}
+	return total, nil
+}
 
 // requireAdaptersView/requireAdaptersModify return a huma error unless the
 // caller (as put in ctx by usertoken.Middleware) may view/modify adapters.
@@ -59,39 +107,75 @@ func NewWebApp(kubernetes database.KubeHandle, db *sql.DB) webApp {
 	}
 }
 
-// GetAdaptersV1 returns adapters
+// GetAdaptersV1 returns a page of adapters
 func (app webApp) GetAdaptersV1(ctx context.Context, input *struct {
+	Filters string `query:"filters" doc:"a string JSON array of objects containing field, operator, and value for filtering"`
+	Sort    string `query:"sort" doc:"a string JSON array of objects containing field and direction ('asc' or 'desc') for sorting"`
+	libquery.Pagination
 }) (*struct {
+	libquery.TotalCount
 	Body []models.Adapter
 }, error) {
 	if err := requireAdaptersView(ctx); err != nil {
 		return nil, err
 	}
-	retAdapters, err := app.getAdaptersV1(ctx, nil)
+	filters, err := libquery.ParseFilters(input.Filters)
+	if err != nil {
+		return nil, err
+	}
+	sorts, err := libquery.ParseSort(input.Sort)
+	if err != nil {
+		return nil, err
+	}
+	retAdapters, total, err := app.getAdaptersV1(ctx, nil, filters, sorts, libquery.Pagination{Offset: input.Offset, Limit: input.Limit})
 	if err != nil {
 		return nil, err
 	}
 	return &struct {
+		libquery.TotalCount
 		Body []models.Adapter
 	}{
-		Body: retAdapters,
+		TotalCount: libquery.TotalCount{TotalCount: total},
+		Body:       retAdapters,
 	}, nil
 }
 
-// getAdaptersV1 is a helper function to get adapters, optionally by id
-// Returns an API friendly error
-func (app webApp) getAdaptersV1(ctx context.Context, id *int) ([]models.Adapter, error) {
+// getAdaptersV1 is a helper function to get adapters, optionally scoped to a
+// single id (in which case filters/sorts/pagination are ignored by callers -
+// they're expected to pass nil, nil, libquery.Pagination{}). Returns an API
+// friendly error, plus the total number of matching adapters (ignoring
+// pagination) for the id == nil, listing case.
+func (app webApp) getAdaptersV1(ctx context.Context, id *int, filters []libquery.Filter, sorts []libquery.Sort, pagination libquery.Pagination) ([]models.Adapter, int, error) {
 	retAdapters := []models.Adapter{}
-	query := "SELECT id, name, imageName, imageTag, created, updated, synced FROM adapters"
-	queryArguments := []interface{}{}
-	if id != nil {
-		query += " WHERE id = ?"
-		queryArguments = append(queryArguments, *id)
+	fragments, args, err := libquery.Translate(filters, adapterFilters)
+	if err != nil {
+		return nil, 0, err
 	}
-	rows, err := app.db.QueryContext(ctx, query, queryArguments...)
+	if id != nil {
+		fragments = append(fragments, "id = ?")
+		args = append(args, *id)
+	}
+	whereClause := strings.Join(fragments, " AND ")
+	total, err := countAdapters(ctx, app.db, whereClause, args)
+	if err != nil {
+		logging.Error("Database error when counting adapters", ctx, map[string]interface{}{"ERROR": err.Error()})
+		return nil, 0, huma.Error500InternalServerError("Internal Server Error")
+	}
+	orderBy, err := libquery.BuildOrderBy(sorts, adapterSortFields, "id")
+	if err != nil {
+		return nil, 0, err
+	}
+	query := "SELECT id, name, imageName, imageTag, created, updated, synced FROM adapters"
+	if whereClause != "" {
+		query += " WHERE " + whereClause
+	}
+	query += " ORDER BY " + orderBy
+	limitClause, limitArgs := paginationClause(pagination)
+	query += limitClause
+	rows, err := app.db.QueryContext(ctx, query, append(append([]any{}, args...), limitArgs...)...)
 	if err != nil {
 		logging.Error("Database error when fetching adapters", ctx, map[string]interface{}{"ERROR": err.Error()})
-		return nil, huma.Error500InternalServerError("Internal Server Error")
+		return nil, 0, huma.Error500InternalServerError("Internal Server Error")
 	}
 	defer rows.Close()
 	for rows.Next() {
@@ -99,11 +183,11 @@ func (app webApp) getAdaptersV1(ctx context.Context, id *int) ([]models.Adapter,
 		err := rows.Scan(&retAdapter.ID, &retAdapter.Name, &retAdapter.ImageName, &retAdapter.ImageTag, &retAdapter.Created, &retAdapter.Updated, &retAdapter.Synced)
 		if err != nil {
 			logging.Error("Database error when fetching adapter", ctx, map[string]interface{}{"ERROR": err.Error()})
-			return nil, huma.Error500InternalServerError("Internal Server Error")
+			return nil, 0, huma.Error500InternalServerError("Internal Server Error")
 		}
 		retAdapters = append(retAdapters, retAdapter)
 	}
-	return retAdapters, nil
+	return retAdapters, total, nil
 }
 
 // GetAdapterV1 returns a specific adapter by id
@@ -115,7 +199,7 @@ func (app webApp) GetAdapterV1(ctx context.Context, input *struct {
 	if err := requireAdaptersView(ctx); err != nil {
 		return nil, err
 	}
-	retAdapters, err := app.getAdaptersV1(ctx, &input.Id)
+	retAdapters, _, err := app.getAdaptersV1(ctx, &input.Id, nil, nil, libquery.Pagination{})
 	if err != nil {
 		return nil, err
 	}
@@ -189,7 +273,7 @@ func (app webApp) SyncAdapterV1(ctx context.Context, input *struct {
 	if err := requireAdaptersModify(ctx); err != nil {
 		return nil, err
 	}
-	syncAdapters, err := app.getAdaptersV1(ctx, &input.Id)
+	syncAdapters, _, err := app.getAdaptersV1(ctx, &input.Id, nil, nil, libquery.Pagination{})
 	if err != nil {
 		return nil, err
 	}
@@ -248,7 +332,7 @@ func (app webApp) UpdateAdapterV1(ctx context.Context, input *struct {
 	if rowsAffected == 0 {
 		return nil, huma.Error404NotFound("adapter not found")
 	}
-	updatedAdapters, err := app.getAdaptersV1(ctx, &input.Id)
+	updatedAdapters, _, err := app.getAdaptersV1(ctx, &input.Id, nil, nil, libquery.Pagination{})
 	if err != nil {
 		return nil, err
 	}
@@ -273,7 +357,7 @@ func (app webApp) GetAdapterAddressV1(ctx context.Context, input *struct {
 	if err := requireAdaptersViewIfPresent(ctx); err != nil {
 		return nil, err
 	}
-	adapters, err := app.getAdaptersV1(ctx, &input.Id)
+	adapters, _, err := app.getAdaptersV1(ctx, &input.Id, nil, nil, libquery.Pagination{})
 	if err != nil {
 		return nil, err
 	}

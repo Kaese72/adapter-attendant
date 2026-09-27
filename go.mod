@@ -4,7 +4,7 @@ go 1.25.0
 
 require (
 	github.com/Kaese72/authentication v0.0.5
-	github.com/Kaese72/huemie-lib v0.0.6
+	github.com/Kaese72/huemie-lib v0.0.7
 	github.com/danielgtaylor/huma/v2 v2.34.1
 	github.com/pkg/errors v0.9.1
 	go.elastic.co/apm/v2 v2.4.3
@@ -25,7 +25,6 @@ require (
 	github.com/santhosh-tekuri/jsonschema v1.2.4 // indirect
 	go.elastic.co/apm v1.15.0 // indirect
 	go.elastic.co/fastjson v1.1.0 // indirect
-	golang.org/x/crypto v0.38.0 // indirect
 	golang.org/x/lint v0.0.0-20201208152925-83fdc39ff7b5 // indirect
 	golang.org/x/mod v0.17.0 // indirect
 	golang.org/x/tools v0.21.1-0.20240508182429-e35e4ccd0d2d // indirect
