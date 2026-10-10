@@ -18,6 +18,15 @@ type Kubernetes struct {
 	KubeConfigPath string `json:"kubeconfig-path" mapstructure:"kubeconfig-path"`
 	InCluster      bool   `json:"in-cluster" mapstructure:"in-cluster"`
 	NameSpace      string `json:"namespace" mapstructure:"namespace"`
+	// ApiserverProxyURL, if set, routes in-cluster apiserver calls through an
+	// HTTP CONNECT proxy dedicated to reaching the apiserver (e.g.
+	// kube-apiserver-proxy) instead of the ClusterIP directly -- see
+	// database.NewPureK8sBackend. Deliberately its own setting rather than a
+	// generic HTTPS_PROXY env var: this process has no other outbound HTTPS
+	// calls today, but a blanket HTTPS_PROXY would silently capture any added
+	// later too, and the apiserver-only proxy refuses to CONNECT anywhere
+	// else.
+	ApiserverProxyURL string `json:"apiserver-proxy-url" mapstructure:"apiserver-proxy-url"`
 }
 
 type Adapters struct {
@@ -55,6 +64,7 @@ func init() {
 	// thus defaults to true
 	viper.BindEnv("kubernetes.in-cluster")
 	viper.SetDefault("kubernetes.in-cluster", true)
+	viper.BindEnv("kubernetes.apiserver-proxy-url")
 
 	// # Logging
 	viper.BindEnv("logging.stdout")
@@ -87,9 +97,10 @@ func init() {
 
 	Loaded = Config{
 		ClusterConfig: Kubernetes{
-			KubeConfigPath: viper.GetString("kubernetes.kubeconfig-path"),
-			NameSpace:      viper.GetString("kubernetes.adapter-namespace"),
-			InCluster:      viper.GetBool("kubernetes.in-cluster"),
+			KubeConfigPath:    viper.GetString("kubernetes.kubeconfig-path"),
+			NameSpace:         viper.GetString("kubernetes.adapter-namespace"),
+			InCluster:         viper.GetBool("kubernetes.in-cluster"),
+			ApiserverProxyURL: viper.GetString("kubernetes.apiserver-proxy-url"),
 		},
 		Adapters: Adapters{
 			DeviceStoreURL:       viper.GetString("adapters.device-store-url"),

@@ -3,6 +3,8 @@ package database
 import (
 	"context"
 	"fmt"
+	"net/http"
+	"net/url"
 	"time"
 
 	"github.com/Kaese72/adapter-attendant/internal/config"
@@ -125,6 +127,21 @@ func NewPureK8sBackend(conf config.Kubernetes) (KubeHandle, error) {
 		kubeConf, err = rest.InClusterConfig()
 		if err != nil {
 			return KubeHandle{}, err
+		}
+		// Route apiserver traffic through an explicit proxy, if configured,
+		// rather than falling back to client-go/rest's default of consulting
+		// HTTPS_PROXY/the process environment -- see
+		// config.Kubernetes.ApiserverProxyURL. With none configured, the
+		// environment is explicitly ignored too, so this never depends on an
+		// HTTPS_PROXY set for some unrelated purpose.
+		if conf.ApiserverProxyURL != "" {
+			proxyURL, err := url.Parse(conf.ApiserverProxyURL)
+			if err != nil {
+				return KubeHandle{}, errors.Wrap(err, "failed to parse kubernetes apiserver-proxy-url")
+			}
+			kubeConf.Proxy = http.ProxyURL(proxyURL)
+		} else {
+			kubeConf.Proxy = func(*http.Request) (*url.URL, error) { return nil, nil }
 		}
 	} else {
 		return KubeHandle{}, fmt.Errorf("no valid Kubernetes config provided")
