@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"strings"
 
 	"github.com/Kaese72/adapter-attendant/internal/config"
-	"github.com/Kaese72/adapter-attendant/internal/database"
 	"github.com/Kaese72/adapter-attendant/internal/logging"
 	"github.com/Kaese72/adapter-attendant/internal/restwebapp"
 	"github.com/Kaese72/authentication/usertoken"
@@ -18,14 +18,20 @@ import (
 	_ "go.elastic.co/apm/module/apmsql/mysql"
 )
 
-func init() {
-
+func parseTokenList(raw string) []string {
+	var out []string
+	for _, t := range strings.Split(raw, ",") {
+		if t = strings.TrimSpace(t); t != "" {
+			out = append(out, t)
+		}
+	}
+	return out
 }
 
 func main() {
-	kubernetesHandle, err := database.NewPureK8sBackend(config.Loaded.ClusterConfig)
-	if err != nil {
-		logging.Error(err.Error(), context.Background())
+	pluginTokens := parseTokenList(config.Loaded.Auth.PluginTokens)
+	if len(pluginTokens) == 0 {
+		logging.Error("must supply auth plugin-tokens", context.Background())
 		os.Exit(1)
 	}
 
@@ -34,7 +40,7 @@ func main() {
 		logging.Error(err.Error(), context.Background())
 		os.Exit(1)
 	}
-	restWebapp := restwebapp.NewWebApp(kubernetesHandle, db)
+	restWebapp := restwebapp.NewWebApp(db, pluginTokens)
 
 	pubKey, err := usertoken.LoadPublicKeyFromFile(config.Loaded.Auth.RSAPublicKeyPath)
 	if err != nil {
@@ -62,11 +68,14 @@ func main() {
 	huma.Delete(publicAPI, "/adapter-attendant/v1/adapters/{id}/arguments/{argumentId}", restWebapp.DeleteAdapterArgumentsForAdapterV1)
 	huma.Patch(publicAPI, "/adapter-attendant/v1/adapters/{adapterId}/arguments/{argumentId}", restWebapp.PatchAdapterArgumentsForAdapterV1)
 
-	// Internal router (adapter-attendant-internal) — no auth, restrict via NetworkPolicy
+	// Internal router (adapter-attendant-internal) — no auth, restrict via NetworkPolicy.
+	// The exception is the ArgoCD Plugin generator endpoint, which also
+	// checks its own plugin token.
 	internalRouter := mux.NewRouter()
 	internalAPI := humamux.New(internalRouter, huma.DefaultConfig("adapter-attendant-internal", "1.0.0"))
 
 	huma.Get(internalAPI, "/adapter-attendant-internal/v1/adapters/{id}/address", restWebapp.GetAdapterAddressV1)
+	huma.Post(internalAPI, "/adapter-attendant-internal/v1/argocd-plugin/api/v1/getparams.execute", restWebapp.PluginGetParams)
 
 	go func() {
 		if err := http.ListenAndServe(fmt.Sprintf("0.0.0.0:%d", config.Loaded.InternalPort), internalRouter); err != nil {

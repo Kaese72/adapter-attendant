@@ -14,19 +14,11 @@ type Database struct {
 	Database string `json:"database" mapstructure:"database"`
 }
 
+// Kubernetes describes where ArgoCD deploys the adapters. This service never
+// talks to the Kubernetes API itself; it only needs the namespace to tell
+// device-store an adapter's in-cluster address.
 type Kubernetes struct {
-	KubeConfigPath string `json:"kubeconfig-path" mapstructure:"kubeconfig-path"`
-	InCluster      bool   `json:"in-cluster" mapstructure:"in-cluster"`
-	NameSpace      string `json:"namespace" mapstructure:"namespace"`
-	// ApiserverProxyURL, if set, routes in-cluster apiserver calls through an
-	// HTTP CONNECT proxy dedicated to reaching the apiserver (e.g.
-	// kube-apiserver-proxy) instead of the ClusterIP directly -- see
-	// database.NewPureK8sBackend. Deliberately its own setting rather than a
-	// generic HTTPS_PROXY env var: this process has no other outbound HTTPS
-	// calls today, but a blanket HTTPS_PROXY would silently capture any added
-	// later too, and the apiserver-only proxy refuses to CONNECT anywhere
-	// else.
-	ApiserverProxyURL string `json:"apiserver-proxy-url" mapstructure:"apiserver-proxy-url"`
+	NameSpace string `json:"namespace" mapstructure:"namespace"`
 }
 
 type Adapters struct {
@@ -36,6 +28,10 @@ type Adapters struct {
 
 type Auth struct {
 	RSAPublicKeyPath string `json:"rsa-public-key-path" mapstructure:"rsa-public-key-path"`
+	// PluginTokens are the bearer tokens the ArgoCD ApplicationSet Plugin
+	// generator may present, comma-separated so the token can be rotated by
+	// adding the new value before removing the old one.
+	PluginTokens string `json:"plugin-tokens" mapstructure:"plugin-tokens"`
 }
 
 type Config struct {
@@ -57,14 +53,8 @@ func init() {
 	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_", "-", "_"))
 
 	// # Default values where appropriate
-	// Kubernetes access configuration
-	viper.BindEnv("kubernetes.kubeconfig-path")
+	// Namespace the adapters are deployed into
 	viper.BindEnv("kubernetes.adapter-namespace")
-	// kubernetes.in-cluster is treated as a fallback when no config is provided and
-	// thus defaults to true
-	viper.BindEnv("kubernetes.in-cluster")
-	viper.SetDefault("kubernetes.in-cluster", true)
-	viper.BindEnv("kubernetes.apiserver-proxy-url")
 
 	// # Logging
 	viper.BindEnv("logging.stdout")
@@ -77,6 +67,8 @@ func init() {
 
 	// # Authentication service public key (RS256 use-token verification)
 	viper.BindEnv("auth.rsa-public-key-path")
+	// # ArgoCD ApplicationSet Plugin generator tokens
+	viper.BindEnv("auth.plugin-tokens")
 
 	// # Ports
 	viper.BindEnv("public-port")
@@ -97,10 +89,7 @@ func init() {
 
 	Loaded = Config{
 		ClusterConfig: Kubernetes{
-			KubeConfigPath:    viper.GetString("kubernetes.kubeconfig-path"),
-			NameSpace:         viper.GetString("kubernetes.adapter-namespace"),
-			InCluster:         viper.GetBool("kubernetes.in-cluster"),
-			ApiserverProxyURL: viper.GetString("kubernetes.apiserver-proxy-url"),
+			NameSpace: viper.GetString("kubernetes.adapter-namespace"),
 		},
 		Adapters: Adapters{
 			DeviceStoreURL:       viper.GetString("adapters.device-store-url"),
@@ -108,6 +97,7 @@ func init() {
 		},
 		Auth: Auth{
 			RSAPublicKeyPath: viper.GetString("auth.rsa-public-key-path"),
+			PluginTokens:     viper.GetString("auth.plugin-tokens"),
 		},
 		Database: Database{
 			Host:     viper.GetString("database.host"),

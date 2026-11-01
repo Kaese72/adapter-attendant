@@ -2,12 +2,14 @@ package restwebapp
 
 import (
 	"context"
+	"crypto/subtle"
 	"database/sql"
+	"encoding/json"
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/Kaese72/adapter-attendant/internal/config"
-	"github.com/Kaese72/adapter-attendant/internal/database"
 	"github.com/Kaese72/adapter-attendant/internal/logging"
 	"github.com/Kaese72/adapter-attendant/rest/models"
 	"github.com/Kaese72/authentication/usertoken"
@@ -100,14 +102,14 @@ func requireAdaptersViewIfPresent(ctx context.Context) error {
 }
 
 type webApp struct {
-	kubernetes database.KubeHandle
-	db         *sql.DB
+	db           *sql.DB
+	pluginTokens []string
 }
 
-func NewWebApp(kubernetes database.KubeHandle, db *sql.DB) webApp {
+func NewWebApp(db *sql.DB, pluginTokens []string) webApp {
 	return webApp{
-		kubernetes: kubernetes,
-		db:         db,
+		db:           db,
+		pluginTokens: pluginTokens,
 	}
 }
 
@@ -266,10 +268,16 @@ func (app webApp) DeleteAdapterV1(ctx context.Context, input *struct {
 		logging.Error("Database error when deleting adapter", ctx, map[string]interface{}{"ERROR": err.Error()})
 		return nil, huma.Error500InternalServerError("Internal Server Error")
 	}
+	// The plugin endpoint no longer lists the adapter, so ArgoCD removes its
+	// Deployment, Service and Secret.
 	return nil, nil
 }
 
-// SyncAdapterV1 triggers a sync for the adapter
+// SyncAdapterV1 deploys the adapter as it is configured now. It records the
+// image and the adapter's whole environment, with a freshly minted enroll
+// token, after which the plugin endpoint lists the adapter and ArgoCD
+// deploys (or restarts) it. Edits made since are not deployed until the next
+// sync.
 func (app webApp) SyncAdapterV1(ctx context.Context, input *struct {
 	Id int `path:"id" doc:"the Id of the adapter to sync"`
 }) (*struct {
@@ -294,12 +302,12 @@ func (app webApp) SyncAdapterV1(ctx context.Context, input *struct {
 	}
 	syncAdapter := syncAdapters[0]
 	logging.Info("Starting sync for adapter", ctx, map[string]any{"ADAPTER_ID": syncAdapter.ID, "ADAPTER_NAME": syncAdapter.Name})
-	err = app.kubernetes.ApplyAdapter(ctx, syncAdapter.ID, syncAdapter.ImageName+":"+syncAdapter.ImageTag, syncArguments)
+	environment, err := adapterEnvironment(syncAdapter.ID, syncArguments)
 	if err != nil {
 		logging.Error("Error syncing adapter", ctx, map[string]any{"ERROR": err.Error(), "ADAPTER_ID": syncAdapter.ID, "ADAPTER_NAME": syncAdapter.Name})
 		return nil, huma.Error500InternalServerError("Internal Server Error")
 	}
-	err = app.registerAdapterSynced(ctx, syncAdapter.ID)
+	err = app.registerAdapterSynced(ctx, syncAdapter.ID, syncAdapter.ImageName+":"+syncAdapter.ImageTag, environment)
 	if err != nil {
 		logging.Error("Error registering adapter sync", ctx, map[string]any{"ERROR": err.Error(), "ADAPTER_ID": syncAdapter.ID, "ADAPTER_NAME": syncAdapter.Name})
 		return nil, huma.Error500InternalServerError("Internal Server Error")
@@ -374,7 +382,7 @@ func (app webApp) GetAdapterAddressV1(ctx context.Context, input *struct {
 	}
 	// FIXME should probably not assume this address.
 	// Works for now...
-	address := fmt.Sprintf("http://adapter-%d.%s:8080", adapter.ID, config.Loaded.ClusterConfig.NameSpace)
+	address := fmt.Sprintf("http://%s.%s:8080", adapterResourceName(adapter.ID), config.Loaded.ClusterConfig.NameSpace)
 	return &struct {
 		Body struct {
 			Address string `json:"address"`
@@ -531,11 +539,91 @@ func (app webApp) PatchAdapterArgumentsForAdapterV1(ctx context.Context, input *
 	}, nil
 }
 
-// registerSynced updates a device with information about being synced.
+// registerSynced updates a device with information about being synced,
+// including the image and environment the plugin endpoint now hands to
+// ArgoCD.
 // This is an internal function and does not return API friendly errors.
-func (app webApp) registerAdapterSynced(ctx context.Context, adapterId int) error {
+func (app webApp) registerAdapterSynced(ctx context.Context, adapterId int, image string, environment map[string]string) error {
+	encodedEnvironment, err := json.Marshal(environment)
+	if err != nil {
+		return err
+	}
 	// FIXME allow passing in sync time in order to avoid time skew issues
-	updateQuery := "UPDATE adapters SET synced = NOW() WHERE id = ?"
-	_, err := app.db.ExecContext(ctx, updateQuery, adapterId)
+	updateQuery := "UPDATE adapters SET synced = NOW(), syncedImage = ?, syncedEnvironment = ?, syncGeneration = syncGeneration + 1 WHERE id = ?"
+	_, err = app.db.ExecContext(ctx, updateQuery, image, string(encodedEnvironment), adapterId)
 	return err
+}
+
+func (app webApp) checkPluginToken(authHeader string) bool {
+	provided, ok := strings.CutPrefix(authHeader, "Bearer ")
+	if !ok || provided == "" {
+		return false
+	}
+	matched := false
+	for _, token := range app.pluginTokens {
+		if subtle.ConstantTimeCompare([]byte(provided), []byte(token)) == 1 {
+			matched = true
+		}
+	}
+	return matched
+}
+
+// PluginGetParams implements ArgoCD's ApplicationSet Plugin generator
+// protocol (POST .../api/v1/getparams.execute), the same way
+// appliance-registry does for cloud-connect-server - see huemie-gitops-base's
+// appliance/argocd/applicationset-adapters.yaml. It answers with one
+// parameter set per adapter synced since adapters were deployed by ArgoCD,
+// including the adapter's credentials; ArgoCD deploys exactly those, and
+// removes the rest.
+//
+// An empty answer is never given for a failure: ArgoCD would delete every
+// adapter's Application for it. A failure is a 500, on which ArgoCD keeps the
+// Applications as they are.
+func (app webApp) PluginGetParams(ctx context.Context, input *struct {
+	Authorization string `header:"Authorization"`
+	Body          models.ArgoCDPluginGetParamsRequest
+}) (*struct {
+	Body models.ArgoCDPluginGetParamsResponse
+}, error) {
+	if !app.checkPluginToken(input.Authorization) {
+		return nil, huma.Error401Unauthorized("invalid plugin token")
+	}
+	rows, err := app.db.QueryContext(ctx, "SELECT id, syncedImage, syncedEnvironment, syncGeneration FROM adapters WHERE syncedImage IS NOT NULL AND syncedEnvironment IS NOT NULL ORDER BY id")
+	if err != nil {
+		logging.Error("Database error when fetching synced adapters", ctx, map[string]any{"ERROR": err.Error()})
+		return nil, huma.Error500InternalServerError("Internal Server Error")
+	}
+	defer rows.Close()
+	resp := models.ArgoCDPluginGetParamsResponse{}
+	resp.Output.Parameters = []models.ArgoCDPluginParameter{}
+	for rows.Next() {
+		var id int
+		var image string
+		var environment string
+		var syncGeneration uint64
+		if err := rows.Scan(&id, &image, &environment, &syncGeneration); err != nil {
+			logging.Error("Database error when scanning synced adapters", ctx, map[string]any{"ERROR": err.Error()})
+			return nil, huma.Error500InternalServerError("Internal Server Error")
+		}
+		// Skipping just this adapter would make ArgoCD delete it, so a
+		// broken one fails the whole answer instead.
+		data, err := secretData(environment)
+		if err != nil {
+			logging.Error("Error reading synced environment", ctx, map[string]any{"ERROR": err.Error(), "ADAPTER_ID": id})
+			return nil, huma.Error500InternalServerError("Internal Server Error")
+		}
+		resp.Output.Parameters = append(resp.Output.Parameters, models.ArgoCDPluginParameter{
+			ID:             strconv.Itoa(id),
+			Image:          image,
+			SyncGeneration: strconv.FormatUint(syncGeneration, 10),
+			SecretData:     data,
+		})
+	}
+	if err := rows.Err(); err != nil {
+		logging.Error("Database error when iterating synced adapters", ctx, map[string]any{"ERROR": err.Error()})
+		return nil, huma.Error500InternalServerError("Internal Server Error")
+	}
+	return &struct {
+		Body models.ArgoCDPluginGetParamsResponse
+	}{Body: resp}, nil
 }
