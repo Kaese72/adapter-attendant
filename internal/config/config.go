@@ -32,6 +32,14 @@ type Auth struct {
 	// generator may present, comma-separated so the token can be rotated by
 	// adding the new value before removing the old one.
 	PluginTokens string `json:"plugin-tokens" mapstructure:"plugin-tokens"`
+	// InternalURL is the authentication service's internal listener, e.g.
+	// http://authentication:8081. When set, API tokens are accepted and
+	// looked up there; when empty, only use tokens are.
+	InternalURL string `json:"internal-url" mapstructure:"internal-url"`
+	// ServiceAccountTokenPath is this pod's projected, audience-bound
+	// ServiceAccount token, presented to the authentication service when
+	// looking an API token up.
+	ServiceAccountTokenPath string `json:"service-account-token-path" mapstructure:"service-account-token-path"`
 }
 
 type Config struct {
@@ -69,6 +77,10 @@ func init() {
 	viper.BindEnv("auth.rsa-public-key-path")
 	// # ArgoCD ApplicationSet Plugin generator tokens
 	viper.BindEnv("auth.plugin-tokens")
+	// API token introspection (optional; see AuthConfig.InternalURL)
+	viper.BindEnv("auth.internal-url")
+	viper.BindEnv("auth.service-account-token-path")
+	viper.SetDefault("auth.service-account-token-path", "/var/run/secrets/tokens/authentication-internal")
 
 	// # Ports
 	viper.BindEnv("public-port")
@@ -96,8 +108,10 @@ func init() {
 			DeviceStoreJWTSecret: viper.GetString("adapters.device-store-jwt-secret"),
 		},
 		Auth: Auth{
-			RSAPublicKeyPath: viper.GetString("auth.rsa-public-key-path"),
-			PluginTokens:     viper.GetString("auth.plugin-tokens"),
+			RSAPublicKeyPath:        viper.GetString("auth.rsa-public-key-path"),
+			PluginTokens:            viper.GetString("auth.plugin-tokens"),
+			InternalURL:             viper.GetString("auth.internal-url"),
+			ServiceAccountTokenPath: viper.GetString("auth.service-account-token-path"),
 		},
 		Database: Database{
 			Host:     viper.GetString("database.host"),

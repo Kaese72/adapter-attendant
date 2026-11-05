@@ -3,8 +3,8 @@ module github.com/Kaese72/adapter-attendant
 go 1.25.0
 
 require (
-	github.com/Kaese72/authentication v0.0.5
-	github.com/Kaese72/huemie-lib v0.0.8
+	github.com/Kaese72/authentication v0.0.9
+	github.com/Kaese72/huemie-lib v0.0.10
 	github.com/danielgtaylor/huma/v2 v2.34.1
 	github.com/pkg/errors v0.9.1
 	go.elastic.co/apm/v2 v2.4.3
@@ -18,15 +18,16 @@ require (
 	github.com/go-sql-driver/mysql v1.5.0 // indirect
 	github.com/jcchavezs/porto v0.1.0 // indirect
 	github.com/joeshaw/multierror v0.0.0-20140124173710-69b34d4ec901 // indirect
-	github.com/niemeyer/pretty v0.0.0-20200227124842-a10e7caefd8e // indirect
+	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/prometheus/procfs v0.0.0-20190425082905-87a4384529e0 // indirect
+	github.com/rogpeppe/go-internal v1.12.0 // indirect
 	github.com/santhosh-tekuri/jsonschema v1.2.4 // indirect
 	go.elastic.co/apm v1.15.0 // indirect
 	go.elastic.co/fastjson v1.1.0 // indirect
 	golang.org/x/lint v0.0.0-20201208152925-83fdc39ff7b5 // indirect
 	golang.org/x/mod v0.17.0 // indirect
 	golang.org/x/tools v0.21.1-0.20240508182429-e35e4ccd0d2d // indirect
-	gopkg.in/check.v1 v1.0.0-20200227125254-8fa46927fb4f // indirect
+	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c // indirect
 	howett.net/plist v0.0.0-20181124034731-591f970eefbb // indirect
 )
 

@@ -50,7 +50,13 @@ func main() {
 
 	// Public router (adapter-attendant)
 	publicRouter := mux.NewRouter()
-	publicRouter.Use(usertoken.Middleware(pubKey, "/adapter-attendant/openapi", "/adapter-attendant/docs"))
+	// API tokens are accepted (looked up in the authentication service) only
+	// when its internal URL is configured; use tokens always are.
+	authOptions := []usertoken.MiddlewareOption{usertoken.SkipPrefixes("/adapter-attendant/openapi", "/adapter-attendant/docs")}
+	if config.Loaded.Auth.InternalURL != "" {
+		authOptions = append(authOptions, usertoken.AcceptAPITokens(usertoken.NewIntrospector(config.Loaded.Auth.InternalURL, config.Loaded.Auth.ServiceAccountTokenPath)))
+	}
+	publicRouter.Use(usertoken.NewMiddleware(pubKey, authOptions...))
 	publicHumaConfig := huma.DefaultConfig("adapter-attendant", "1.0.0")
 	publicHumaConfig.OpenAPIPath = "/adapter-attendant/openapi"
 	publicHumaConfig.DocsPath = "/adapter-attendant/docs"
